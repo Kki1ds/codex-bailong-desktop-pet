@@ -1,6 +1,24 @@
 # macOS 测试版
 
-在不改变 Windows 行为的前提下，让桌宠在 Apple Silicon Mac 上从源码运行，或在本机构建 .app。macOS 版不提供安装器和应用内更新，公开 Release 仍只有 Windows 包。授权边界见 NOTICE.md，与 Windows 版相同。
+在不改变 Windows 行为的前提下，让桌宠在 Apple Silicon Mac 上运行。macOS 版是社区维护的移植，由 [Kki1ds](https://github.com/Kki1ds) 在 fork 中维护，不是上游官方版本。授权边界见 NOTICE.md，与 Windows 版相同。
+
+## 下载与安装
+
+1. 在 [Releases](https://github.com/Kki1ds/codex-bailong-desktop-pet/releases) 下载 `BailongEnhanced-<版本>-macos-arm64.zip`，只支持 Apple Silicon。
+2. 解压后把 `BailongEnhanced.app` 拖进“应用程序”文件夹。
+3. 首次打开时，Gatekeeper 会提示无法验证开发者（ad-hoc 签名，未公证）：在 Finder 中右键 .app 选择“打开”，或在 系统设置 → 隐私与安全性 中点“仍要打开”。
+4. 安装包只含卡片；人物动画在 设置 → 角色与素材 中从上游 Release 下载，逐一校验 SHA-256 后使用。
+
+升级时退出桌宠，用新版替换“应用程序”里的旧版即可，设置和已下载的动画保存在数据目录，不受影响。替换后首次读取闲聊密钥时，钥匙串会重新询问授权。
+
+## 维护范围
+
+- 尽力维护，不承诺跟进每个上游版本。
+- 上游发布次版本或主版本（例如 1.1.0、2.0.0）时，同步代码、在 Mac 上实测并发布新的 macOS 包。
+- 补丁版本（例如 1.0.2）一般不单独跟进，影响使用的严重问题除外。
+- 每个 Release 注明基于的上游版本、测试设备和已知限制。
+- macOS 版关闭了应用内更新，不会下载 Windows 补丁；更新请到 Releases 下载新版。
+- macOS 相关问题请在 [本仓库 Issues](https://github.com/Kki1ds/codex-bailong-desktop-pet/issues) 反馈；Windows 版问题请到上游。
 
 已在 M1 Pro（macOS，arm64）上验收，步骤和结果见文末。Intel Mac 未测试。
 
@@ -63,7 +81,7 @@ pip 若配置了不含这些版本的镜像，可加 `-i https://pypi.org/simple
 ## 已知限制
 
 - 只在 Apple Silicon（M1 Pro）上测试过，Intel Mac 未测。
-- 未做代码签名与公证，只能在本机构建使用；每次重新构建后，首次读取闲聊密钥时钥匙串会重新询问授权。
+- 未使用开发者证书签名，也未公证，首次打开需要手动放行；每次重新构建后，首次读取闲聊密钥时钥匙串会重新询问授权。
 - 关闭鼠标穿透后，人物窗口的透明区域在重启前可能仍拦截点击（Qt 在 macOS 上的行为）。
 - 系统通知走 Qt 的托盘消息，源码运行时可能不显示；面板内的完成提醒始终可见。
 - 菜单栏图标为彩色缩略图，尚未提供单色模板图标。

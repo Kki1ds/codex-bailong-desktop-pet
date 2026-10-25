@@ -2,9 +2,65 @@
 
 ![文章海报](docs/media/cover.png)
 
-一只陪你使用 Codex 的 Windows 白龙桌宠：在桌面查看任务状态、接收完成提醒、追踪账户额度和 Token 用量。基于 [jingh12312-rgb/bailong-desktop-pet](https://github.com/jingh12312-rgb/bailong-desktop-pet) 持续改造，当前公开版本 **v1.0.1**。
+一只陪你使用 Codex 的 Windows 白龙桌宠：在桌面查看任务状态、接收完成提醒、追踪账户额度和 Token 用量。基于 [jingh12312-rgb/bailong-desktop-pet](https://github.com/jingh12312-rgb/bailong-desktop-pet) 持续改造，上游 Windows 版当前公开版本 **v1.0.1**。本 fork 另外维护 macOS 社区版（Apple Silicon），当前 **1.0.1-mac.1**，基于上游 v1.0.1。
 
-**[下载程序安装器](https://github.com/Wunsch2048/codex-bailong-desktop-pet/releases/tag/v1.0.1)** [查看更新](https://github.com/Wunsch2048/codex-bailong-desktop-pet/releases/latest) | [快速部署](docs/快速部署说明.txt) | [全部新增功能](docs/新增功能说明.txt) | [开发说明](docs/DEVELOPMENT.md) | [迭代历史](docs/迭代历史.txt)
+**[下载 macOS 社区版](https://github.com/Kki1ds/codex-bailong-desktop-pet/releases)** | [上游 Windows 安装器](https://github.com/Wunsch2048/codex-bailong-desktop-pet/releases/tag/v1.0.1) [查看上游更新](https://github.com/Wunsch2048/codex-bailong-desktop-pet/releases/latest) | [快速部署](docs/快速部署说明.txt) | [全部新增功能](docs/新增功能说明.txt) | [开发说明](docs/DEVELOPMENT.md) | [迭代历史](docs/迭代历史.txt)
+
+## macOS 社区版
+
+macOS 社区版由 [Kki1ds](https://github.com/Kki1ds) 在本 fork 维护，不是上游官方版本，上游作者没有 Mac，未在 Mac 上验证。界面、数据和动画与 Windows 版共用同一套代码，macOS 专属的部分（路径、Codex 发现、钥匙串、登录启动、窗口行为、构建）集中在独立模块中，Windows 行为不变。完整说明见 [docs/MACOS.md](docs/MACOS.md)。
+
+| 项目 | macOS 社区版 |
+| --- | --- |
+| 基于 | 上游 v1.0.1（8dd8617） |
+| 测试环境 | MacBook Pro M1 Pro，内置屏加外接 5K 显示器，ChatGPT.app 内置 Codex CLI |
+| 不在范围内 | Intel Mac 未测试；不声明兼容所有 macOS 版本（最低设为 macOS 12） |
+
+### 下载
+
+| 文件 | 用法 |
+| --- | --- |
+| `BailongEnhanced-1.0.1-mac.1-macos-arm64.zip` | 解压后把 `BailongEnhanced.app` 拖进“应用程序” |
+| `BailongEnhanced-1.0.1-mac.1-macos-arm64.zip.sha256` | 在下载目录运行 `shasum -a 256 -c BailongEnhanced-1.0.1-mac.1-macos-arm64.zip.sha256` 校验 |
+
+安装包约 136 MB，自带 Python 与 Qt，无需安装其他软件，只需本机已安装 Codex 桌面端（ChatGPT.app）或 Codex CLI。安装包只含卡片，人物动画在 设置 → 角色与素材 中从上游 Release 下载，逐一校验后使用。
+
+应用使用 ad-hoc 签名，未公证。首次打开时会提示无法验证开发者：在 Finder 中右键 .app 选择“打开”，或在 系统设置 → 隐私与安全性 中点“仍要打开”。
+
+### 数据与隐私
+
+设置和统计保存在 `~/Library/Application Support/BailongEnhanced`，源码运行和 .app 共用；升级时用新版替换旧版即可，设置和已下载的动画保留。桌宠不修改 Codex 的配置和登录凭据；闲聊密钥存放在登录钥匙串中，不写入文件。安装包不含账号、会话、个人设置或凭据。
+
+### 已验证
+
+Codex 任务状态与完成提醒、点击跳转到对应会话、额度环与日报、轻量动画下载与播放、登录启动与随 Codex 启动、全屏应用时让位、多桌面空间、深色模式下保持浅色界面、钥匙串读写删除、运行中再次打开时找回组件。步骤和结果见 [验收记录](docs/MACOS.md#验收记录)。
+
+### 已知限制
+
+- 没有应用内更新，不要在 macOS 上使用上游的 Windows 安装器或补丁包；新版请到本仓库 Releases 下载。
+- 不支持 WSL 连接来源（Windows 专属），设置中不显示该选项。
+- 全屏让位只用 Chrome 全屏视频实测过；未用真实模型服务测试闲聊发送。
+- 播放人物动画时桌宠进程约占单核 37% CPU，主要来自 WebP 软件解码，与 Windows 版相同。
+- 其余限制见 [docs/MACOS.md](docs/MACOS.md#已知限制)。
+
+### 维护范围
+
+尽力维护，不承诺跟进每个上游版本：上游发布次版本或主版本（例如 1.1.0、2.0.0）时，同步代码、在 Mac 上实测并发布新的 macOS 包；补丁版本一般不单独跟进，影响使用的严重问题除外。macOS 相关问题请在 [本仓库 Issues](https://github.com/Kki1ds/codex-bailong-desktop-pet/issues) 反馈；Windows 版问题请到上游。
+
+### 从源码运行
+
+```bash
+brew install python@3.12
+/opt/homebrew/opt/python@3.12/bin/python3.12 -m venv .venv
+.venv/bin/python -m pip install -r requirements-enhanced.txt
+.venv/bin/python app/enhanced.py
+```
+
+本机构建 .app：`.venv/bin/python build_macos.py --cards-only`，详见 [docs/MACOS.md](docs/MACOS.md#构建-app)。
+
+## 上游 Windows 版
+
+以下内容来自上游，描述的是 Windows 版。
 
 ### v1.0.1 程序补丁
 
@@ -28,6 +84,8 @@
 本次累积发布还修复持续工作循环中的笔记本反复开合，统一数字、英文和中文字体，并改善闲聊服务配置与错误提示。完整说明见[ v0.9.3 发布说明](docs/releases/v0.9.3.md)。提供完整 Windows 安装 ZIP 和程序更新 ZIP/JSON。
 
 ## 桌面上可以做什么
+
+以下为上游 Windows 版的功能；macOS 版的差异见上文 [macOS 社区版](#macos-社区版) 和 [docs/MACOS.md](docs/MACOS.md#与-windows-版的差异)。
 
 | 功能 | 实际表现 |
 | --- | --- |
@@ -136,7 +194,8 @@
 - [从源码运行与构建](docs/DEVELOPMENT.md)：Python 3.12、PySide6、角色素材准备、验证和打包。
 - [通俗开发报告](docs/report/index.html)：下载仓库后用浏览器打开，可离线查看配图和 GIF；GitHub 页面展示 HTML 源码。
 - [新增功能说明](docs/新增功能说明.txt) 和 [完整迭代历史](docs/迭代历史.txt)：当前能力与已被替换方案分别记录。
-- 遇到问题请 [提交 Issue](https://github.com/Wunsch2048/codex-bailong-desktop-pet/issues/new/choose)，附版本、系统缩放、操作步骤；请先去掉截图和日志里的私密信息。
+- macOS 社区版的问题请到 [本仓库 Issues](https://github.com/Kki1ds/codex-bailong-desktop-pet/issues)，附 macOS 版本、芯片型号和操作步骤。
+- 上游 Windows 版遇到问题请 [提交 Issue](https://github.com/Wunsch2048/codex-bailong-desktop-pet/issues/new/choose)，附版本、系统缩放、操作步骤；请先去掉截图和日志里的私密信息。
 
 ## 来源与许可
 
