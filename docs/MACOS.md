@@ -4,8 +4,8 @@
 
 ## 下载与安装
 
-1. 在 [Releases](https://github.com/Kki1ds/codex-bailong-desktop-pet/releases) 下载 `BailongEnhanced-<版本>-macos-arm64.zip`，只支持 Apple Silicon。
-2. 解压后把 `BailongEnhanced.app` 拖进“应用程序”文件夹。
+1. 在 [Releases](https://github.com/Kki1ds/codex-bailong-desktop-pet/releases) 下载 `BailongEnhanced-<版本>-macos-arm64.dmg`，只支持 Apple Silicon。可用同名 `.sha256` 文件校验：`shasum -a 256 -c <文件名>.sha256`。
+2. 双击打开 .dmg，把 `BailongEnhanced.app` 拖到旁边的“Applications”文件夹，然后推出磁盘映像。
 3. 首次打开时，Gatekeeper 会提示无法验证开发者（ad-hoc 签名，未公证）：在 Finder 中右键 .app 选择“打开”，或在 系统设置 → 隐私与安全性 中点“仍要打开”。
 4. 安装包只含卡片；人物动画在 设置 → 角色与素材 中从上游 Release 下载，逐一校验 SHA-256 后使用。
 
@@ -44,16 +44,17 @@ pip 若配置了不含这些版本的镜像，可加 `-i https://pypi.org/simple
 
 第二条生成 `build/materials/light`，内容 ID 与 material_catalog.json 一致。它会以 LF 重写 `app/material_catalog.json`，内容不变，`git checkout app/material_catalog.json` 即可还原换行。
 
-测试与 Windows 相同：`PYTHONPATH=app QT_QPA_PLATFORM=offscreen` 后运行 unittest。Windows 专属的安装、注册表和 DPAPI 测试在 macOS 上跳过；macOS 专属测试（test_macos_codex、test_live_unix、test_mac_platform_services、test_mac_full_screen）在其他系统上跳过。闲聊密钥的测试不会读写真实钥匙串。GitHub Actions 的 macOS 任务（macos-14，arm64）运行这四组测试，并构建一次仅卡片 .app 做 `codesign --verify`，不下载人物素材。
+测试与 Windows 相同：`PYTHONPATH=app QT_QPA_PLATFORM=offscreen` 后运行 unittest。Windows 专属的安装、注册表和 DPAPI 测试在 macOS 上跳过；macOS 专属测试（test_macos_codex、test_live_unix、test_mac_platform_services、test_mac_full_screen）在其他系统上跳过。闲聊密钥的测试不会读写真实钥匙串。GitHub Actions 的 macOS 任务（macos-14，arm64）运行这四组测试，并构建一次仅卡片 .app 与 .dmg，做 `codesign --verify` 和 SHA-256 校验，不下载人物素材。
 
 ## 构建 .app
 
 ```bash
 .venv/bin/python build_macos.py --cards-only   # 不内置动画，约 140 MB
 .venv/bin/python build_macos.py                # 内置 512px 轻量素材，约 700 MB，需先生成 build/materials/light
+.venv/bin/python build_macos.py --cards-only --dmg   # 另外生成发布用的 .dmg 和 .sha256
 ```
 
-每次构建都写入新的 `build/macos-<版本>-<时间>` 与 `release/macos-<版本>-<时间>`，输出为其中的 `BailongEnhanced.app`；脚本不删除、不覆盖任何已有目录，旧构建原样保留，需要时请自行清理。PyInstaller 通过 `tools/pyinstaller_keep_files.py` 运行，打包过程中的递归删除同样被拒绝。打包后做 ad-hoc 签名，未使用开发者证书，也未公证。把 .app 拷到“应用程序”文件夹后再开启登录启动；直接从下载位置运行时系统会把它放进随机只读路径（App Translocation），登录启动会提示先移动。
+每次构建都写入新的 `build/macos-<版本>-<时间>` 与 `release/macos-<版本>-<时间>`，输出为其中的 `BailongEnhanced.app`，加 `--dmg` 时还有 `.dmg` 与 `.sha256`；脚本不删除、不覆盖任何已有目录，旧构建原样保留，需要时请自行清理。PyInstaller 通过 `tools/pyinstaller_keep_files.py` 运行，打包过程中的递归删除同样被拒绝。打包后做 ad-hoc 签名，未使用开发者证书，也未公证。把 .app 拷到“应用程序”文件夹后再开启登录启动；直接从下载位置运行时系统会把它放进随机只读路径（App Translocation），登录启动会提示先移动。
 
 首次打开时，Gatekeeper 可能提示无法验证开发者：在 Finder 中右键 .app 选择“打开”，或在 系统设置 → 隐私与安全性 中允许。本机构建的 .app 通常不带隔离属性，不会出现此提示。
 

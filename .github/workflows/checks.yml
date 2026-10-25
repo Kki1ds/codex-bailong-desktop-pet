@@ -35,5 +35,6 @@ jobs:
       - run: python -m compileall -q app tools build_macos.py
       # Real Keychain tests stay off (BAILONG_KEYCHAIN_TEST unset); no character materials are downloaded.
       - run: python -m unittest test_macos_codex test_live_unix test_mac_platform_services test_mac_full_screen
-      - run: python build_macos.py --cards-only
+      - run: python build_macos.py --cards-only --dmg
       - run: codesign --verify --deep --strict --verbose=2 release/macos-*/BailongEnhanced.app
+      - run: cd release/macos-* && shasum -a 256 -c *.dmg.sha256

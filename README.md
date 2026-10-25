@@ -20,10 +20,10 @@ macOS 社区版由 [Kki1ds](https://github.com/Kki1ds) 在本 fork 维护，不�
 
 | 文件 | 用法 |
 | --- | --- |
-| `BailongEnhanced-1.0.1-mac.1-macos-arm64.zip` | 解压后把 `BailongEnhanced.app` 拖进“应用程序” |
-| `BailongEnhanced-1.0.1-mac.1-macos-arm64.zip.sha256` | 在下载目录运行 `shasum -a 256 -c BailongEnhanced-1.0.1-mac.1-macos-arm64.zip.sha256` 校验 |
+| `BailongEnhanced-1.0.1-mac.1-macos-arm64.dmg` | 双击打开，把 `BailongEnhanced.app` 拖到旁边的“Applications”文件夹 |
+| `BailongEnhanced-1.0.1-mac.1-macos-arm64.dmg.sha256` | 在下载目录运行 `shasum -a 256 -c BailongEnhanced-1.0.1-mac.1-macos-arm64.dmg.sha256` 校验 |
 
-安装包约 136 MB，自带 Python 与 Qt，无需安装其他软件，只需本机已安装 Codex 桌面端（ChatGPT.app）或 Codex CLI。安装包只含卡片，人物动画在 设置 → 角色与素材 中从上游 Release 下载，逐一校验后使用。
+应用约 136 MB，自带 Python 与 Qt，无需安装其他软件，只需本机已安装 Codex 桌面端（ChatGPT.app）或 Codex CLI。安装包只含卡片，人物动画在 设置 → 角色与素材 中从上游 Release 下载，逐一校验后使用。
 
 应用使用 ad-hoc 签名，未公证。首次打开时会提示无法验证开发者：在 Finder 中右键 .app 选择“打开”，或在 系统设置 → 隐私与安全性 中点“仍要打开”。
 
@@ -56,7 +56,7 @@ brew install python@3.12
 .venv/bin/python app/enhanced.py
 ```
 
-本机构建 .app：`.venv/bin/python build_macos.py --cards-only`，详见 [docs/MACOS.md](docs/MACOS.md#构建-app)。
+本机构建 .app：`.venv/bin/python build_macos.py --cards-only`，加 `--dmg` 同时生成安装镜像，详见 [docs/MACOS.md](docs/MACOS.md#构建-app)。
 
 ## 上游 Windows 版
 
