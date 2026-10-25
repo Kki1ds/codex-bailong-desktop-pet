@@ -4,7 +4,8 @@ from pathlib import Path
 from functools import lru_cache
 
 def paths_file():
-    return Path(os.environ.get('LOCALAPPDATA',str(Path.home())))/'BailongEnhanced/connection-paths.json'
+    from platform_paths import data_dir
+    return data_dir()/'connection-paths.json'
 
 @lru_cache(maxsize=8)
 def _saved_paths(filename):
@@ -17,15 +18,21 @@ def _saved_paths(filename):
 
 def saved_paths():return dict(_saved_paths(str(paths_file())))
 
+def wsl_supported():
+    # WSL sources exist only on Windows; a profile or UNC path copied from
+    # Windows must never route a macOS host through wsl.exe.
+    return sys.platform!='darwin'
+
 def validate_paths(values):
     if values.get('source')=='wsl':
+        if not wsl_supported():raise ValueError('macOS 不支持 WSL 连接来源。')
         from wsl_codex import validate
         return validate(values)
     result={key:str(values.get(key,'')).strip().strip('"') for key in ('home','cli')}
     if 'source' in values:result.update({key:str(values.get(key,'')) for key in ('source','wsl_distro','wsl_user','wsl_home','wsl_cli','wsl_path')});result['source']='windows'
     if result['home']:
         from wsl_codex import unc_parts
-        if unc_parts(result['home']):raise ValueError('这是 WSL 数据目录，请先将连接来源切换为 WSL。')
+        if wsl_supported() and unc_parts(result['home']):raise ValueError('这是 WSL 数据目录，请先将连接来源切换为 WSL。')
         home=Path(os.path.expandvars(result['home'])).expanduser().resolve()
         if not home.is_dir() or not any((home/name).exists() for name in ('sessions','archived_sessions','state_5.sqlite','.codex-global-state.json')):
             raise ValueError('请选择 Codex 数据目录，其中应包含 sessions、state_5.sqlite 或本地状态文件。')
@@ -34,6 +41,11 @@ def validate_paths(values):
         result['home']=str(home)
     if result['cli']:
         cli=Path(os.path.expandvars(result['cli'])).expanduser().resolve()
+        if sys.platform=='darwin':
+            from codex_mac import bundled_cli,desktop_executable,bundle_identity,BUNDLE_ID
+            # The macOS file dialog returns ChatGPT.app itself; use the CLI inside it.
+            if cli.suffix=='.app' and bundle_identity(cli)[0]==BUNDLE_ID:cli=bundled_cli(cli) or cli
+            elif desktop_executable(cli):raise ValueError('这是 Codex 桌面主程序；请选择 ChatGPT.app/Contents/Resources/codex-cli/bin/codex。')
         if not cli.is_file():raise ValueError('所选 CLI 文件不存在。')
         if cli.name.lower()=='codex.exe' and (cli.parent/'resources/codex.exe').is_file():
             raise ValueError('这是 Codex 桌面主程序；请选择同目录 resources 中的 codex.exe。')
@@ -58,16 +70,17 @@ def user_environment(name):
 
 def data_home(home=None):
     saved=saved_paths()
-    if home is None and saved.get('source')=='wsl':
+    if home is None and wsl_supported() and saved.get('source')=='wsl':
         from wsl_codex import unc
         try:return Path(unc(saved['wsl_distro'],saved['wsl_home']))
         except (KeyError,ValueError):return Path(r'\\wsl$\Invalid-Bailong-Profile\__unconfigured__')
     value=home or os.environ.get('BAILONG_CODEX_HOME') or os.environ.get('CODEX_HOME') or saved_paths().get('home') or user_environment('CODEX_HOME') or Path.home()/'.codex'
     from wsl_codex import unc_parts
-    if unc_parts(value):return Path(value)
+    if wsl_supported() and unc_parts(value):return Path(value)
     return Path(os.path.expandvars(str(value).strip().strip('"'))).expanduser().resolve()
 
 def is_wsl_source(home=None):
+    if not wsl_supported():return False
     if home is None:return saved_paths().get('source')=='wsl'
     from wsl_codex import unc_parts
     return unc_parts(home) is not None
@@ -121,6 +134,10 @@ def find_executable():
         located=str(path) if path.is_file() else shutil.which(override)
         if located:return located
         raise RuntimeError('BAILONG_CODEX 指向的程序不存在，请修正该机器的 Codex CLI 路径。' if os.environ.get('BAILONG_CODEX') else '已保存的 CLI 路径不存在，请在设置 → Codex中重新选择。')
+    if sys.platform=='darwin':
+        from codex_mac import cli_candidates
+        for path in cli_candidates(data_home()):return str(path)
+        raise RuntimeError('未找到 Codex CLI。请先安装并打开 Codex（ChatGPT.app）；特殊安装可设置 BAILONG_CODEX。')
     local=Path(os.environ.get('LOCALAPPDATA') or Path.home()/'AppData/Local')
     cache=local/'OpenAI/Codex/bin';candidates=list(cache.glob('*/codex.exe')) if cache.is_dir() else []
     if (cache/'codex.exe').is_file():candidates.append(cache/'codex.exe')
@@ -176,7 +193,8 @@ def check_connection(query_quota=True,cancel=None):
             code=getattr(error,'code','unavailable');code=code if code in ('authentication','network','timeout','cli_missing','wsl_stopped') else 'unavailable'
             report['quota_error_code']=code;report['capabilities']['quota']=sample('unavailable',code)
     elif not report['cli_found']:report['capabilities']['quota']=sample('unavailable','cli_missing')
-    root=Path(os.environ.get('LOCALAPPDATA',str(Path.home())))/'BailongEnhanced'
+    from platform_paths import data_dir
+    root=data_dir()
     try:
         config=json.loads((root/'chat.json').read_text(encoding='utf-8'));report['chat_configured']=bool(config.get('providers'))
     except (OSError,ValueError):report['chat_configured']=False

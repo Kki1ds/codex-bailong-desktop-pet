@@ -2,7 +2,9 @@
 import json,os,shutil,subprocess,sys
 from pathlib import Path
 
-def settings_file():return Path(os.environ.get('LOCALAPPDATA',str(Path.home())))/'BailongEnhanced/optional-tools.json'
+def settings_file():
+    from platform_paths import data_dir
+    return data_dir()/'optional-tools.json'
 def find_ffmpeg():
     candidates=[os.environ.get('BAILONG_FFMPEG','')]
     try:candidates.append(json.loads(settings_file().read_text(encoding='utf-8')).get('ffmpeg',''))
@@ -10,7 +12,8 @@ def find_ffmpeg():
     candidates.append(shutil.which('ffmpeg.exe') or shutil.which('ffmpeg') or '')
     # Previous protected installs already contain the converter. Reuse it only
     # when the user requests WebM import, without copying it to every upgrade.
-    root=Path(os.environ.get('LOCALAPPDATA',str(Path.home())))/'Programs/BailongEnhanced'
+    from platform_paths import install_root
+    root=install_root()
     try:
         manifest=json.loads((root/'installations.json').read_text(encoding='utf-8'))
         for name in manifest.get('versions',[]):

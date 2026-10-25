@@ -7,6 +7,7 @@ Only initialize/follow/unfollow and negative discovery responses are sent.
 import ctypes,json,os,struct,threading,time
 from uuid import UUID
 import msgspec
+from platform_paths import MACOS
 
 NULL=msgspec.Raw(b'null')
 
@@ -219,6 +220,27 @@ class Frames:
             yield raw
         if offset:del self.buffer[:offset]
 
+def unix_sockets():
+    """macOS router socket: <CODEX_HOME>/ipc/ipc.sock, then Codex's legacy per-user temp socket."""
+    import tempfile
+    from pathlib import Path
+    from codex_connection import data_home
+    homes=dict.fromkeys((data_home(),(Path.home()/'.codex').resolve()))
+    return [*(h/'ipc'/'ipc.sock' for h in homes),Path(tempfile.gettempdir())/'codex-ipc'/f'ipc-{os.getuid()}.sock']
+
+def connect_unix(paths):
+    import socket,stat
+    for path in map(str,paths):
+        # Like the desktop router, only trust a socket owned by this user.
+        try:
+            st=os.lstat(path)
+            if not stat.S_ISSOCK(st.st_mode) or st.st_uid!=os.getuid():continue
+            sock=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM)
+        except OSError:continue
+        try:sock.settimeout(2);sock.connect(path);sock.settimeout(None);return sock
+        except OSError:sock.close()
+    raise OSError('IPC socket unavailable')
+
 class LiveStatusReader(threading.Thread):
     def __init__(self,stop,emit,emit_waiting=None,emit_activity=None,emit_terminal=None):
         super().__init__(name='BailongCodexLifecycle',daemon=True);self.stop_event=stop;self.emit=emit;self.emit_waiting=emit_waiting
@@ -237,6 +259,7 @@ class LiveStatusReader(threading.Thread):
     def targets(self):
         with self.lock:return self._targets
     def run(self):
+        if MACOS:return self._run_unix()
         if os.name!='nt':self.set_health('unavailable','ipc_disconnected');return
         from ctypes import wintypes
         import msvcrt
@@ -249,6 +272,25 @@ class LiveStatusReader(threading.Thread):
                         count=wintypes.DWORD()
                         if not peek(msvcrt.get_osfhandle(pipe.fileno()),None,0,None,ctypes.byref(count),None):raise OSError('IPC disconnected')
                         return count.value
+                    self._listen(pipe,available)
+            except (OSError,ValueError,msgspec.MsgspecError):self.set_health('degraded','ipc_disconnected')
+            finally:self.connected=False
+            self.stop_event.wait(5)
+    def _run_unix(self):
+        import select
+        from fcntl import ioctl
+        from termios import FIONREAD
+        while not self.stop_event.is_set():
+            try:
+                with connect_unix(unix_sockets()) as sock,sock.makefile('rwb',buffering=0) as pipe:
+                    poll=select.poll();poll.register(sock,select.POLLIN)
+                    def available():
+                        # Unix sockets hold only ~8 KB; waiting briefly for the next chunk
+                        # keeps multi-MB snapshots from stalling 50 ms per chunk.
+                        if not poll.poll(50):return 0
+                        count=struct.unpack('i',ioctl(sock,FIONREAD,b'\0\0\0\0'))[0]
+                        if count<=0:raise OSError('IPC disconnected')
+                        return count
                     self._listen(pipe,available)
             except (OSError,ValueError,msgspec.MsgspecError):self.set_health('degraded','ipc_disconnected')
             finally:self.connected=False

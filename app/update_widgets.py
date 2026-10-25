@@ -25,6 +25,8 @@ class UpdatePanel(QWidget):
         row=QHBoxLayout();self.check=QPushButton('检查更新');self.check.setObjectName('check_app_update');self.check.clicked.connect(controller.check);row.addWidget(self.check)
         self.install=QPushButton('下载并安装');self.install.setObjectName('install_app_update');self.install.setProperty('role','primary');self.install.clicked.connect(controller.download_install);row.addWidget(self.install)
         self.cancel=QPushButton('暂停下载');self.cancel.clicked.connect(controller.cancel);row.addWidget(self.cancel);layout.addLayout(row)
+        from update_controller import UNSUPPORTED
+        if UNSUPPORTED:self.check.hide()
         self.details_button=QPushButton('查看更新内容');self.details_button.setCheckable(True);layout.addWidget(self.details_button)
         self.details=QPlainTextEdit();self.details.setReadOnly(True);self.details.setMaximumHeight(160);self.details.setAccessibleName('版本更新内容')
         self.disclosure=AnimatedDisclosure(self.details);layout.addWidget(self.disclosure);self.details_button.toggled.connect(self.disclosure.set_expanded)

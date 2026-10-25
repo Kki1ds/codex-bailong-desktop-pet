@@ -7,6 +7,9 @@ from PySide6.QtWidgets import (QDialog,QVBoxLayout,QHBoxLayout,QFormLayout,QTabW
     QCheckBox,QDoubleSpinBox,QPlainTextEdit,QPushButton,QComboBox,QLabel,QFileDialog,QMessageBox,QScrollArea,QLineEdit)
 from desktop_core import DEFAULTS,VERSION
 from desktop_services import autostart_enabled,set_autostart,import_character,validate_character,all_items
+from pathlib import Path
+from platform_paths import MACOS
+SYSTEM='macOS' if MACOS else 'Windows'
 from settings_draft import SettingsDraft
 from connection_widgets import CapabilityPanel
 from ui_theme import MUTED,PRIMARY,BORDER,PANEL,SURFACE,SELECTED,INK,ACCENT,editor_stylesheet
@@ -145,14 +148,14 @@ class SettingsDialog(QDialog):
     def build_page_2(self):
         pet=self.pet
         connection=self.tab('Codex 联动')
-        self.section(connection,'启动与退出','Windows 登录启动与随 Codex 启动相互独立；按需开启。')
-        self.startup=SwitchRow('登录 Windows 时启动');connection.addRow(self.startup)
+        self.section(connection,'启动与退出',SYSTEM+' 登录启动与随 Codex 启动相互独立；按需开启。'+('首次开启时 macOS 会提示新增后台项目，可在“登录项与扩展”中管理。' if MACOS else ''))
+        self.startup=SwitchRow('登录 '+SYSTEM+' 时启动');connection.addRow(self.startup)
         self.field_tabs['startup']=self._building_index;self.field_titles['startup']='开机启动'
         self.startup.toggled.connect(lambda:self.edited('startup'))
-        self.codex_startup=SwitchRow('随 Windows Codex 桌面端启动');connection.addRow(self.codex_startup)
+        self.codex_startup=SwitchRow('随 Codex 桌面端启动' if MACOS else '随 Windows Codex 桌面端启动');connection.addRow(self.codex_startup)
         self.field_tabs['codex_startup']=self._building_index;self.field_titles['codex_startup']='随 Codex 启动'
         self.codex_startup.toggled.connect(lambda:self.edited('codex_startup'))
-        note=QLabel('登录时运行轻量监听；识别 Codex 桌面端，不依赖 Codex++。手动退出桌宠后，本次 Codex 使用期间不再拉起。可另行开启关闭联动。');note.setWordWrap(True);note.setStyleSheet(f'font-size:11px;color:{MUTED};');connection.addRow(note)
+        note=QLabel(('登录时运行轻量监听；识别 Codex 桌面端。' if MACOS else '登录时运行轻量监听；识别 Codex 桌面端，不依赖 Codex++。')+'手动退出桌宠后，本次 Codex 使用期间不再拉起。可另行开启关闭联动。');note.setWordWrap(True);note.setStyleSheet(f'font-size:11px;color:{MUTED};');connection.addRow(note)
         self.check(connection,'codex_exit','Codex 桌面端关闭后退出桌宠（确认退出后约6秒）')
         self.section(connection,'状态与人物响应','面板持续更新，人物在安全边界切换；不会逐条打断动作。')
         self.check(connection,'commentary','显示 Codex 工作过程与回复摘要')
@@ -173,6 +176,7 @@ class SettingsDialog(QDialog):
         from codex_connection import saved_paths,data_home
         saved=saved_paths();self.path_fields={};self.native_path_rows=[];self.path_form=paths
         self.path_source=SlidingSegments([('Windows','windows'),('WSL','wsl')]);self.path_source.setCurrentIndex(self.path_source.findData(saved.get('source') or 'windows'),False);paths.addRow('连接来源',self.path_source)
+        if MACOS:paths.setRowVisible(self.path_source,False) # WSL is a Windows source
         for key,title in [('home','Codex 数据目录'),('cli','Codex CLI 程序')]:
             row=QWidget();layout=QHBoxLayout(row);layout.setContentsMargins(0,0,0,0)
             field=QLineEdit(saved.get(key,''));field.setPlaceholderText('留空自动识别');field.setAccessibleName(title);self.path_fields[key]=field;layout.addWidget(field,1)
@@ -188,7 +192,7 @@ class SettingsDialog(QDialog):
             field=QLineEdit(saved.get(key,''));field.setPlaceholderText(hint);field.setAccessibleName(title);self.wsl_fields[key]=field;wsl_form.addRow(title,field)
         paths.addRow(self.wsl_body)
         self.active_path=QLabel('当前生效目录：'+str(data_home()));self.active_path.setWordWrap(True);self.active_path.setStyleSheet(f'font-size:11px;color:{MUTED};');paths.addRow(self.active_path)
-        note=QLabel('保存后重启桌宠生效。WSL 验证会启动所选发行版；使用 Linux 登录，Windows 数据独立保留。');note.setWordWrap(True);note.setStyleSheet(f'font-size:11px;color:{MUTED};');paths.addRow(note)
+        note=QLabel('保存后重启桌宠生效；环境变量优先。只修改本桌宠的路径，不更改 Codex 或登录凭据。' if MACOS else '保存后重启桌宠生效。WSL 验证会启动所选发行版；使用 Linux 登录，Windows 数据独立保留。');note.setWordWrap(True);note.setStyleSheet(f'font-size:11px;color:{MUTED};');paths.addRow(note)
         row=QWidget();layout=QHBoxLayout(row);layout.setContentsMargins(0,0,0,0)
         self.save_paths_button=QPushButton('验证并保存路径');self.save_paths_button.clicked.connect(self.validate_paths);layout.addWidget(self.save_paths_button)
         reset=QPushButton('改为自动识别');reset.clicked.connect(self.clear_paths);layout.addWidget(reset);paths.addRow(row)
@@ -230,13 +234,13 @@ class SettingsDialog(QDialog):
     def build_page_5(self):
         pet=self.pet
         maintenance=self.tab('更新与维护')
-        self.section(maintenance,'软件更新','检查 GitHub 公开稳定版；下载和安装由你主动发起。')
+        self.section(maintenance,'软件更新','macOS 测试版暂不支持应用内更新，自动检查不会运行。' if MACOS else '检查 GitHub 公开稳定版；下载和安装由你主动发起。')
         self.check(maintenance,'update_checks','自动检查更新（不自动下载）')
         if hasattr(pet,'updates'):
             from update_widgets import UpdatePanel
             self.update_panel=UpdatePanel(pet.updates);maintenance.addRow(self.update_panel)
         self.section(maintenance,'诊断与数据','维护操作立即执行；不属于设置草稿。')
-        for title,slot in [('打开配置与聊天记录目录',pet.open_data),('导出诊断报告（不含对话和密钥）',pet.export_diagnostics),('备份设置（不含密钥与对话）',pet.backup_settings),('恢复设置备份',pet.restore_settings),('清理历史版本与备份（先预览）',pet.cleanup_installations)]:
+        for title,slot in [('打开配置与聊天记录目录',pet.open_data),('导出诊断报告（不含对话和密钥）',pet.export_diagnostics),('备份设置（不含密钥与对话）',pet.backup_settings),('恢复设置备份',pet.restore_settings)]+([] if MACOS else [('清理历史版本与备份（先预览）',pet.cleanup_installations)]):
             button=QPushButton(title);button.clicked.connect(slot);maintenance.addRow(button)
         maintenance.addRow(QLabel('程序版本 '+VERSION))
 
@@ -246,6 +250,10 @@ class SettingsDialog(QDialog):
             label=QLabel(note);label.setWordWrap(True);label.setStyleSheet(f'font-size:11px;color:{MUTED};margin-bottom:3px;');form.addRow(label)
     def choose_path(self,key):
         if key=='home':value=QFileDialog.getExistingDirectory(self,'选择 Codex 数据目录',self.path_fields[key].text())
+        elif MACOS:
+            # The CLI ships inside ChatGPT.app; open there so the bundle need not be browsed into.
+            start=self.path_fields[key].text() or next((p for p in ('/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin',) if Path(p).is_dir()),'')
+            value,_=QFileDialog.getOpenFileName(self,'选择 Codex CLI（不是桌面主程序）',start,'所有文件 (*)')
         else:value,_=QFileDialog.getOpenFileName(self,'选择 Codex CLI（不是桌面主程序）',self.path_fields[key].text(),'程序 (*.exe);;所有文件 (*)')
         if value:self.path_fields[key].setText(value)
     def path_source_changed(self,*args):
@@ -414,7 +422,7 @@ class SettingsDialog(QDialog):
         if item:self.pet.choose(item,interactive=False,manual=True)
     def select_converter(self):
         if self.job and self.job.isRunning():self.library_status.setText('正在检查或导入，请稍等…');return
-        path,_=QFileDialog.getOpenFileName(self,'选择 FFmpeg 转换工具（仅导入 WebM 时使用）','','FFmpeg (ffmpeg*.exe);;所有文件 (*)')
+        path,_=QFileDialog.getOpenFileName(self,'选择 FFmpeg 转换工具（仅导入 WebM 时使用）',next((p for p in ('/opt/homebrew/bin','/usr/local/bin') if Path(p).is_dir()),'') if MACOS else '','FFmpeg (ffmpeg);;所有文件 (*)' if MACOS else 'FFmpeg (ffmpeg*.exe);;所有文件 (*)')
         if not path:return
         self.library_status.setText('正在后台验证转换工具…')
         self.job=ConverterJob(path,None,self)

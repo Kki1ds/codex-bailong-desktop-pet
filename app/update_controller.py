@@ -1,6 +1,9 @@
 """One background update operation, explicit installation, and silent periodic checks."""
-import threading,time
+import sys,threading,time
 from PySide6.QtCore import QObject,QThread,QTimer,Signal
+# Public releases are Windows packages; a macOS build must never fetch or run them.
+UNSUPPORTED=sys.platform=='darwin'
+MAC_MESSAGE='macOS 测试版暂不提供应用内更新：请在源码仓库拉取更新后重新运行或构建。'
 from app_updates import check_release,stage_installer,version_tuple,prune_completed,UpdateError,UpdateCancelled,NoRelease,ensure_checksum
 
 class UpdateJob(QThread):
@@ -46,6 +49,7 @@ class UpdateController(QObject):
         super().__init__(parent);self.program_version=current;self.current=effective_version(current,cache.parent);self.cache=cache;self.allow_auto=allow_auto;self.release=None;self.job=None;self.closing=False;self.enabled=False;self.install_requested=False
         current=self.current
         self.state=dict(phase='idle',message='点击检查 GitHub 公开稳定版',current=current,latest='',notes='',downloaded=0,total=0,checked=0)
+        if UNSUPPORTED:self.allow_auto=False;self.state['message']=MAC_MESSAGE
         self.timer=QTimer(self);self.timer.setInterval(6*3600*1000);self.timer.timeout.connect(self._automatic)
         self.initial=QTimer(self);self.initial.setSingleShot(True);self.initial.setInterval(15000);self.initial.timeout.connect(self._automatic)
         self.cleanup_timer=QTimer(self);self.cleanup_timer.setSingleShot(True);self.cleanup_timer.setInterval(60000);self.cleanup_timer.timeout.connect(self.cleanup)
@@ -66,10 +70,12 @@ class UpdateController(QObject):
     def _selected(self,release):
         self.release=release;self.publish(package_kind=release.kind,package_animation=bool(release.animation_info_url),package_reason=release.reason,total=release.size,downloaded=0,message=release.reason)
     def check(self):
+        if UNSUPPORTED:self.publish(message=MAC_MESSAGE);return False
         if self.closing or self.job is not None or self.state['phase']=='pending':return False
         self.publish(phase='checking',message='正在检查公开稳定版…')
         self._bind(UpdateJob(self.current,self.cache,parent=self,program_version=self.program_version));return True
     def download_install(self):
+        if UNSUPPORTED:return False
         if self.closing or self.job is not None or self.state['phase']=='pending' or self.release is None or version_tuple(self.release.version)<=version_tuple(self.current):return False
         self.install_requested=True;self.publish(phase='downloading',message='正在准备下载…',total=self.release.size)
         self._bind(UpdateJob(self.current,self.cache,self.release,parent=self));return True

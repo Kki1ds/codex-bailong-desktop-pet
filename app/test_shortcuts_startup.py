@@ -1,5 +1,5 @@
 """User-facing shortcut routing and companion launch lifecycle regressions."""
-import os
+import os,sys
 os.environ['QT_QPA_PLATFORM']='offscreen'
 import json,tempfile,unittest
 from pathlib import Path
@@ -12,6 +12,11 @@ import codex_startup as cs
 from quick_actions import website_url
 
 APP=QApplication.instance() or QApplication([])
+def entry_text():
+    # Windows: UTF-16 VBS in Startup; macOS: LaunchAgent plist.
+    path=cs.startup_path()
+    if path.suffix=='.plist':import plistlib;return ' '.join(plistlib.loads(path.read_bytes())['ProgramArguments'])
+    return path.read_text(encoding='utf-16')
 def settle(pet):
     for _ in range(4):APP.processEvents();pet.bubble.size_transition.complete()
     APP.sendPostedEvents(None,QEvent.Type.DeferredDelete)
@@ -87,6 +92,7 @@ class StartupTests(unittest.TestCase):
         self.assertFalse(gate.observe(set()));self.assertFalse(gate.observe(set()))
         self.assertTrue(gate.observe({(30,345.)}));self.assertFalse(gate.observe({(30,345.)}))
         self.assertTrue(gate.observe({(40,456.)})) # restart entirely between samples
+    @unittest.skipUnless(sys.platform=='win32','Windows Codex layout')
     def test_desktop_detector_excludes_cli_chatgpt_only_and_helpers(self):
         def process(pid,path,args):
             p=Mock(pid=pid,info={'name':Path(path).name});p.exe.return_value=path;p.cmdline.return_value=args;p.create_time.return_value=100.;return p
@@ -98,7 +104,7 @@ class StartupTests(unittest.TestCase):
     def test_enable_disable_registration_and_failed_spawn_are_reversible(self):
         exe=self.root/'versions/0.8.1-test/BailongEnhanced.exe'
         with patch.object(cs,'spawn') as launch:
-            cs.configure(True,exe);self.assertTrue(cs.enabled());self.assertIn('--watch-codex',cs.startup_path().read_text(encoding='utf-16'))
+            cs.configure(True,exe);self.assertTrue(cs.enabled());self.assertIn('--watch-codex',entry_text())
             launch.assert_called_once_with([str(exe),'--watch-codex'])
             cs.configure(False,exe);self.assertFalse(cs.enabled());self.assertFalse(cs.startup_path().exists())
         before=cs.preference_path().read_bytes()
@@ -108,7 +114,7 @@ class StartupTests(unittest.TestCase):
         cs.atomic(cs.preference_path(),{'enabled':True})
         cs.register(self.root/'versions/0.8.1-test/BailongEnhanced.exe')
         cs.register(self.root/'versions/0.8.2-test/BailongEnhanced.exe')
-        self.assertIn('0.8.2-test',cs.startup_path().read_text(encoding='utf-16'))
+        self.assertIn('0.8.2-test',entry_text())
         cs.register(self.root/'versions/0.8.0-test/BailongEnhanced.exe');self.assertFalse(cs.startup_path().exists())
     def test_launch_drops_stale_installer_nonce(self):
         with patch.dict(os.environ,BAILONG_DEPLOY_TOKEN='private',BAILONG_DEPLOY_RECEIPT='old'),patch.object(cs.subprocess,'Popen') as launch:

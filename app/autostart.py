@@ -4,7 +4,8 @@ from pathlib import Path
 from datetime import datetime
 import psutil
 
-ROOT=Path(sys.executable).resolve().parent if getattr(sys,'frozen',False) else Path(__file__).resolve().parents[1]
+from platform_paths import app_root
+ROOT=app_root()
 
 def gpt_is_open():
     for process in psutil.process_iter(['name','exe']):
@@ -30,6 +31,7 @@ def startup_entry():
     return Path(buffer.value)/'BailongPetAutostart.vbs'
 
 def enable_autostart():
+    if sys.platform!='win32':raise RuntimeError('macOS 请在设置 → Codex 联动中开启“打开 Codex 时自动启动桌宠”。')
     if getattr(sys,'frozen',False):command=f'"{sys.executable}" --autostart'
     else:command=f'"{Path(sys.executable).with_name("pythonw.exe")}" "{ROOT / "app/autostart.py"}"'
     script='Option Explicit\nDim shell\nSet shell = CreateObject("WScript.Shell")\n'
@@ -40,6 +42,7 @@ def enable_autostart():
     subprocess.Popen(args,cwd=ROOT,creationflags=subprocess.CREATE_NO_WINDOW)
 
 def disable_autostart():
+    if sys.platform!='win32':raise RuntimeError('macOS 请在设置 → Codex 联动中关闭“打开 Codex 时自动启动桌宠”。')
     entry=startup_entry()
     if entry.is_file():entry.unlink()
     state_file=ROOT/'app/自启动状态.json'
@@ -53,6 +56,7 @@ def disable_autostart():
         except (psutil.NoSuchProcess,psutil.AccessDenied):pass
 
 def main():
+    if sys.platform!='win32':return 1
     kernel=ctypes.WinDLL('kernel32',use_last_error=True)
     kernel.CreateMutexW.argtypes=[ctypes.c_void_p,ctypes.c_bool,ctypes.c_wchar_p]
     kernel.CreateMutexW.restype=ctypes.c_void_p

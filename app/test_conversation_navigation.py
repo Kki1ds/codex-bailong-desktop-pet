@@ -1,4 +1,4 @@
-import os,unittest
+import os,sys,unittest
 os.environ['QT_QPA_PLATFORM']='offscreen'
 from unittest.mock import patch
 from PySide6.QtWidgets import QApplication
@@ -31,12 +31,14 @@ class NameNavigationTests(unittest.TestCase):
         self.assertEqual(opened,[OTHER])
         QTest.mouseClick(row,Qt.MouseButton.LeftButton,pos=QPoint(row.text_left()+10,9));self.b.size_transition.complete()
         self.assertTrue(self.b.expanded)
+    @unittest.skipUnless(sys.platform=='win32','Windows Codex layout')
     def test_opening_conversation_uses_registered_deeplink_with_no_shell_or_fallback(self):
         self.assertEqual(codex_conversation_url('rollout-2026-10-18-'+SID),'codex://threads/'+SID)
         with patch('desktop_services.os.startfile') as launch:
             open_codex(SID);launch.assert_called_once_with('codex://threads/'+SID)
         for value in ('bad','../escape','codex://threads/'+SID,SID+'?prompt=run'):
             with self.assertRaises(OSError):codex_conversation_url(value)
+    @unittest.skipUnless(sys.platform=='win32','Windows Codex layout')
     def test_unknown_protocol_failure_is_reported_without_opening_wrong_conversation(self):
         with patch('desktop_services.os.startfile',side_effect=OSError('no protocol')) as launch:
             with self.assertRaisesRegex(OSError,'对应会话'):open_codex(SID)

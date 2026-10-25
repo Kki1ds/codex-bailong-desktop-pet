@@ -11,10 +11,11 @@ import psutil
 POLL_SECONDS=2
 WATCH_FLAG='--watch-codex'
 
-def data_dir():return Path(os.environ['LOCALAPPDATA'])/'BailongEnhanced'
-def install_root():return Path(os.environ['LOCALAPPDATA'])/'Programs/BailongEnhanced'
+from platform_paths import data_dir,install_root,background_python,MACOS,NO_WINDOW
 def preference_path():return data_dir()/'codex-startup.json'
-def startup_path():return Path(os.environ['APPDATA'])/'Microsoft/Windows/Start Menu/Programs/Startup/BailongCodexSync.vbs'
+def startup_path():
+    if MACOS:from platform_paths import launch_agent;return launch_agent('codex-sync')[0]
+    return Path(os.environ['APPDATA'])/'Microsoft/Windows/Start Menu/Programs/Startup/BailongCodexSync.vbs'
 def read_json(path):
     try:
         value=json.loads(Path(path).read_text(encoding='utf-8'))
@@ -27,7 +28,7 @@ def enabled():return read_json(preference_path()).get('enabled') is True
 
 def app_command():
     if getattr(sys,'frozen',False):return [sys.executable]
-    return [str(Path(sys.executable).with_name('pythonw.exe')),str(Path(__file__).with_name('enhanced.py'))]
+    return [str(background_python()),str(Path(__file__).with_name('enhanced.py'))]
 
 def supports_watcher(exe):
     try:return tuple(map(int,Path(exe).parent.name.split('-')[0].split('.'))) >= (0,8,1)
@@ -39,6 +40,9 @@ def register(exe=None):
     if not enabled() or (exe is not None and not supports_watcher(exe)):
         path.unlink(missing_ok=True);return
     command=[str(exe)] if exe is not None else app_command()
+    if MACOS:
+        from platform_paths import launch_agent,write_launch_agent
+        return write_launch_agent(path,launch_agent('codex-sync')[1],command+[WATCH_FLAG])
     command=subprocess.list2cmdline(command+[WATCH_FLAG])
     script='Option Explicit\nDim s\nSet s=CreateObject("WScript.Shell")\ns.Run "'+command.replace('"','""')+'",0,False\n'
     path.parent.mkdir(parents=True,exist_ok=True)
@@ -46,11 +50,19 @@ def register(exe=None):
 
 def ensure_watcher(executable=None):
     if enabled():
+        if MACOS and executable is None:
+            # Keep the login agent pointing at a moved .app or venv; identical bytes are rewritten harmlessly.
+            try:register()
+            except OSError:pass
         return spawn(([str(executable)] if executable else app_command())+[WATCH_FLAG])
 
 def spawn(command):
     env=os.environ.copy()
     for key in ('BAILONG_DEPLOY_TOKEN','BAILONG_DEPLOY_RECEIPT'):env.pop(key,None)
+    if MACOS:
+        # Own session: survives the launching terminal or launchd job, like a detached Windows process.
+        if getattr(sys,'frozen',False):env['PYINSTALLER_RESET_ENVIRONMENT']='1'
+        return subprocess.Popen(command,close_fds=True,env=env,start_new_session=True,stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
     return subprocess.Popen(command,creationflags=0x08000000,close_fds=True,env=env)
 
 def stop_watchers(root=None):
@@ -83,6 +95,9 @@ def configure(value,executable=None):
 
 def desktop_executable(path):
     """Exclude Codex CLI, ChatGPT-only packages and Electron helper processes."""
+    if MACOS:
+        from codex_mac import desktop_executable as bundle_check
+        return bundle_check(path)
     value=str(path).lower().replace('/','\\')
     name=value.rsplit('\\',1)[-1]
     if name not in ('chatgpt.exe','codex.exe'):return False
@@ -93,9 +108,10 @@ def desktop_executable(path):
 
 def desktop_sessions():
     sessions=set();uncertain=False
+    names=('chatgpt','codex') if MACOS else ('codex.exe','chatgpt.exe')
     for process in psutil.process_iter(['name']):
         try:
-            if (process.info['name'] or '').lower() not in ('codex.exe','chatgpt.exe'):continue
+            if (process.info['name'] or '').lower() not in names:continue
             if not desktop_executable(process.exe()):continue
             if any(arg.startswith('--type=') for arg in process.cmdline()[1:]):continue
             sessions.add((process.pid,process.create_time()))
@@ -124,13 +140,29 @@ def current_command():
     exe=folder/'BailongEnhanced.exe'
     return [str(exe)] if exe.is_file() and supports_watcher(exe) else None
 
+def instance_lock():
+    """POSIX twin of the Win32 mutex; the kernel drops it when this process exits."""
+    import fcntl
+    path=data_dir()/'codex-watch.lock';path.parent.mkdir(parents=True,exist_ok=True)
+    handle=open(path,'a')
+    try:fcntl.flock(handle,fcntl.LOCK_EX|fcntl.LOCK_NB)
+    except OSError:handle.close();return None
+    return handle
+
 def main():
-    kernel=ctypes.WinDLL('kernel32',use_last_error=True)
-    kernel.CreateMutexW.argtypes=[ctypes.c_void_p,ctypes.c_bool,ctypes.c_wchar_p];kernel.CreateMutexW.restype=ctypes.c_void_p
-    kernel.CloseHandle.argtypes=[ctypes.c_void_p]
-    handle=kernel.CreateMutexW(None,False,'Local\\BailongCodexSyncV1')
-    if not handle:return 1
-    if ctypes.get_last_error()==183:kernel.CloseHandle(handle);return 0
+    if MACOS:
+        try:lock=instance_lock()
+        except OSError:return 1
+        if lock is None:return 0
+        release=lock.close
+    else:
+        kernel=ctypes.WinDLL('kernel32',use_last_error=True)
+        kernel.CreateMutexW.argtypes=[ctypes.c_void_p,ctypes.c_bool,ctypes.c_wchar_p];kernel.CreateMutexW.restype=ctypes.c_void_p
+        kernel.CloseHandle.argtypes=[ctypes.c_void_p]
+        handle=kernel.CreateMutexW(None,False,'Local\\BailongCodexSyncV1')
+        if not handle:return 1
+        if ctypes.get_last_error()==183:kernel.CloseHandle(handle);return 0
+        release=lambda:kernel.CloseHandle(handle)
     gate=LaunchGate();state=dict(pid=os.getpid(),started=time.time(),launches=0)
     path=data_dir()/'codex-watch-state.json';replacement=None
     try:
@@ -139,6 +171,13 @@ def main():
             if not (install_root()/'deployment-journal.json').exists():
                 command=current_command()
                 if command is None:break
+                if MACOS:
+                    # The login agent names the copy that last enabled this; hand off when the pet moved.
+                    from platform_paths import launch_agent_args
+                    agent=launch_agent_args(startup_path()) or []
+                    target=agent[:-1] if agent[-1:]==[WATCH_FLAG] else None
+                    if target and Path(target[0]).is_file() and [os.path.realpath(a) for a in target]!=[os.path.realpath(a) for a in command]:
+                        replacement=target;break
                 if getattr(sys,'frozen',False) and Path(command[0]).resolve()!=Path(sys.executable).resolve():
                     replacement=command;break
                 sessions=desktop_sessions()
@@ -152,7 +191,7 @@ def main():
                 if previous!=state['codex_open'] or 'written' not in state or state.get('last_launch',0)>state['written']:
                     state['written']=time.time();atomic(path,state)
             time.sleep(POLL_SECONDS)
-    finally:kernel.CloseHandle(handle)
+    finally:release()
     if replacement and enabled():spawn(replacement+[WATCH_FLAG])
     return 0
 

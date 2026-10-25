@@ -1003,11 +1003,13 @@ class DesktopPet(EnhancedPet):
         self.settings['character']='builtin';self.save_settings();self.idle()
         self.materials.remove(plan)
     def export_diagnostics(self):
-        self.record_state();path=ROOT/('白龙诊断-'+time.strftime('%Y%m%d-%H%M%S')+'.json')
+        # macOS: never write into the signed app bundle; the report goes next to settings.
+        folder=STATE_DIR if sys.platform=='darwin' else ROOT
+        self.record_state();path=folder/('白龙诊断-'+time.strftime('%Y%m%d-%H%M%S')+'.json')
         value=json.loads((STATE_DIR/'runtime.json').read_text(encoding='utf-8'))
         value['asset_count']=len(all_items(self.manifest));value['decode_error']=self.decode_error
         value['work_animation_count']=len([v for v in self.manifest.get('workAnimations',[]) if v]);value['semantic_work_actions']=True;value['explicit_task_arrival_animation']=True
-        atomic_json(path,value);self.say('诊断已保存：'+path.name,6000)
+        atomic_json(path,value);self.say('诊断已保存：'+path.name+('（配置目录）' if sys.platform=='darwin' else ''),6000)
     def cleanup_installations(self):
         from installer import ROOT as install_root,DATA
         from installation_cleanup import cleanup_plan,CleanupJob

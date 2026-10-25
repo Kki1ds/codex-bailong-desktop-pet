@@ -129,6 +129,7 @@ class ProgramUpdateTests(unittest.TestCase):
         source=stage_program(self.release,self.cache,self.old,opener=self.opener);paths=program_paths(self.cache,VERSION)
         with patch('psutil.process_iter',return_value=[SimpleNamespace(info=dict(exe=str(source/'BailongEnhanced.exe')))]):prune_program_cache(self.cache,VERSION)
         self.assertTrue(paths['archive'].is_file());self.assertTrue((source/'_internal/runtime.dll').is_file());self.assertTrue(paths['receipt'].is_file())
+    @unittest.skipUnless(sys.platform=='win32','Windows installer and Startup folder')
     def test_apply_verifies_and_uses_backup_transaction_and_preserves_hd_preference(self):
         source=stage_program(self.release,self.cache,self.old,opener=self.opener);data=self.cache.parent;(data/'settings.json').write_text('{"custom":true}');(data/'material-preferences.json').write_text('{"tier":"hd"}')
         install=self.root/'sandbox';install.mkdir();(install/'versions/old').mkdir(parents=True);(install/'versions/old/BailongEnhanced.exe').write_bytes(b'old');(install/'installations.json').write_text('{"current":"old","versions":["old"]}')
@@ -142,6 +143,7 @@ class ProgramUpdateTests(unittest.TestCase):
         from program_update_apply import apply_update
         with patch('installer.stop_existing') as stop,self.assertRaises((ValueError,UpdateError)):apply_update(source,self.root/'sandbox',self.cache.parent)
         stop.assert_not_called()
+    @unittest.skipUnless(sys.platform=='win32','Windows installer and Startup folder')
     def test_new_process_not_ready_restores_old_manifest_and_retains_data_backup(self):
         source=stage_program(self.release,self.cache,self.old,opener=self.opener);data=self.cache.parent;(data/'settings.json').write_text('{"custom":true}')
         install=self.root/'sandbox';(install/'versions/old').mkdir(parents=True);(install/'versions/old/BailongEnhanced.exe').write_bytes(b'old');(install/'installations.json').write_text('{"current":"old","versions":["old"]}')

@@ -26,7 +26,8 @@ from reset_watch import LocalResetEvidence, locally_reset, ResetTracker, fetch_f
 from token_calendar import TokenUsageIndex
 from refresh_flow import RefreshCoordinator, RefreshRuns
 
-STATE_DIR=Path(os.environ.get('LOCALAPPDATA',str(ROOT)))/'BailongEnhanced'
+from platform_paths import data_dir
+STATE_DIR=data_dir()
 STATE_DIR.mkdir(parents=True,exist_ok=True)
 CONFIG=STATE_DIR/'settings.json'
 
@@ -806,6 +807,8 @@ class EnhancedPet(Pet):
 
 
 def main():
+    if sys.platform=='darwin' and any(arg in sys.argv for arg in ('--apply-program-update','--manage','--smoke-video-probe','--card-surface-probe','--interaction-probe','--chat-probe')):
+        print('此功能仅适用于 Windows 安装版。',file=sys.__stderr__);return 2
     if '--chat-probe' in sys.argv:
         from chat_probe import run
         return run(sys.argv[sys.argv.index('--chat-probe')+1])

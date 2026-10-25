@@ -6,10 +6,12 @@ from session_read_state import seen_completed_turns,read_unread_sessions,session
 from conversation_roster import ConversationRoster
 
 class DiscoveryTests(unittest.TestCase):
+    @unittest.skipUnless(sys.platform=='win32','Windows Codex layout')
     def test_new_user_without_path_uses_own_codex_cache(self):
         with tempfile.TemporaryDirectory() as folder,patch.dict(os.environ,{'LOCALAPPDATA':folder,'BAILONG_CODEX':''}),patch('codex_connection.shutil.which',return_value=None):
             exe=Path(folder)/'OpenAI/Codex/bin/new-version/codex.exe';exe.parent.mkdir(parents=True);exe.write_bytes(b'test')
             self.assertEqual(Path(find_executable()),exe)
+    @unittest.skipUnless(sys.platform=='win32','Windows Codex layout')
     def test_fresh_store_install_finds_native_resource_not_gui(self):
         with tempfile.TemporaryDirectory() as folder,patch.dict(os.environ,{'LOCALAPPDATA':folder,'APPDATA':folder,'BAILONG_CODEX':''}),patch('codex_connection.shutil.which',return_value=None):
             root=Path(folder)/'store/app';(root/'resources').mkdir(parents=True)

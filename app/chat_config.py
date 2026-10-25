@@ -114,8 +114,12 @@ def _cleanup_keys(root,provider_id,old_provider,committed):
         old_reference=_reference(old_provider) if old_provider else ''
         remove={name for name in data if name not in in_use and
                 (name==provider_id or name==old_reference or name.startswith('chat:'+provider_id+':'))}
-        if remove:atomic_json(store.path,{k:v for k,v in data.items() if k not in remove})
+        if remove:
+            # The macOS Keychain has no credentials document; items are deleted individually.
+            if hasattr(store,'remove'):store.remove(remove)
+            else:atomic_json(store.path,{k:v for k,v in data.items() if k not in remove})
     except OSError:
+        if hasattr(store,'remove'):return '密钥已停用，但钥匙串中的旧副本清理失败；请检查钥匙串访问授权后再次清除。'
         return '密钥已停用，但旧加密副本清理失败；请检查用户目录权限后再次清除。'
     return ''
 

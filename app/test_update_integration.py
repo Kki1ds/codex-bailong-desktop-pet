@@ -10,7 +10,10 @@ from app_updates import parse_release,cache_paths
 APP=journeys.APP
 
 class UpdateIntegration(unittest.TestCase):
-    setUp=journeys.InteractionTests.setUp
+    def setUp(self):
+        # The update flow under test is the Windows one; macOS builds switch it off.
+        patcher=patch('update_controller.UNSUPPORTED',False);patcher.start();self.addCleanup(patcher.stop)
+        journeys.InteractionTests.setUp(self)
     tearDown=journeys.InteractionTests.tearDown
     settings=journeys.InteractionTests.settings
     def wait(self,check):

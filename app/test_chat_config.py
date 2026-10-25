@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 import chat_config as cfg
 from desktop_core import atomic_json
-from desktop_services import SecretStore
+from secret_isolation import FileSecretStore as SecretStore,isolate_secrets
 
 
 def fake_protect(value,decrypt=False):
@@ -21,6 +21,7 @@ class ChatConfigTests(unittest.TestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
         self.root=Path(self.temp.name);self.config_path=self.root/'chat.json';self.secret_path=self.root/'credentials.dpapi.json'
+        isolate_secrets(self)
         self.crypto=patch('desktop_services.protect',side_effect=fake_protect);self.crypto.start();self.addCleanup(self.crypto.stop)
         self.old=copy.deepcopy(cfg.CHAT_DEFAULT)
         self.old.update(active='provider-a',providers=[dict(id='provider-a',name='原服务',base_url='https://old.example/v1',model='old-model',timeout=90)])

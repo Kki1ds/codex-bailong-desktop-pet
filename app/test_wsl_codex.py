@@ -1,4 +1,4 @@
-import io,json,os,subprocess,tempfile,unittest
+import io,json,os,subprocess,sys,tempfile,unittest
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock,patch
@@ -8,6 +8,7 @@ import codex_connection as connection
 
 PROFILE=dict(source='wsl',home='',cli='',wsl_distro='Ubuntu',wsl_user='alice',wsl_home='/home/alice/.codex',wsl_cli='/home/alice/.nvm/versions/node/v22/bin/codex',wsl_path='/home/alice/.nvm/versions/node/v22/bin:/usr/local/bin:/usr/bin:/bin')
 
+@unittest.skipIf(sys.platform=='darwin','WSL sources are Windows-only; the macOS guard is covered in test_macos_codex')
 class WslCodexTests(unittest.TestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory();self.root=Path(self.temp.name);wsl._cache.clear()
@@ -127,6 +128,7 @@ class WslCodexTests(unittest.TestCase):
         with patch('codex_connection.is_wsl_source',return_value=True),patch('threading.Thread') as launch:
             DesktopPet.poll_codex_presence(fake);launch.assert_not_called()
 
+@unittest.skipIf(sys.platform=='darwin','WSL sources are Windows-only; the macOS guard is covered in test_macos_codex')
 class WslSettingsTests(unittest.TestCase):
     import test_second_batch as fixtures
     setUp=fixtures.VisualInteractionTests.setUp

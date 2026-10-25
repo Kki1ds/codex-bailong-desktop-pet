@@ -21,6 +21,10 @@ def startup_paths():
     return root/'BailongEnhanced.vbs',root/'白龙桌宠增强版.lnk'
 
 def autostart_enabled():
+    if sys.platform=='darwin':
+        from platform_paths import launch_agent,launch_agent_args
+        from codex_startup import app_command
+        return launch_agent_args(launch_agent()[0])==app_command()
     vbs,link=startup_paths()
     if vbs.exists():
         try:return command().replace('"','""') in vbs.read_text(encoding='utf-16')
@@ -35,6 +39,13 @@ def autostart_enabled():
     return False
 
 def set_autostart(enabled):
+    if sys.platform=='darwin':
+        from platform_paths import launch_agent,write_launch_agent
+        from codex_startup import app_command
+        path,label=launch_agent()
+        if enabled:write_launch_agent(path,label,app_command(),ProcessType='Interactive')
+        else:path.unlink(missing_ok=True)
+        return
     vbs,link=startup_paths();vbs.parent.mkdir(parents=True,exist_ok=True)
     if enabled:
         script='Option Explicit\nDim shell\nSet shell = CreateObject("WScript.Shell")\nshell.Run "'+command().replace('"','""')+'", 0, False\n'
@@ -77,6 +88,10 @@ class SecretStore:
         if value:data[name]=protect(value)
         else:data.pop(name,None)
         atomic_json(self.path,data)
+
+# macOS keeps API keys in the login Keychain; no credentials file is written there.
+FileSecretStore=SecretStore
+if sys.platform=='darwin':from mac_keychain import KeychainStore as SecretStore
 
 def checked_path(root,name):
     relative=Path(name)
@@ -177,6 +192,9 @@ def import_character(source,destination):
 
 def codex_desktop_open():
     """Inspect package GUI processes on the monitor thread, never the UI loop."""
+    if sys.platform=='darwin':
+        from codex_startup import desktop_sessions
+        sessions=desktop_sessions();return None if sessions is None else bool(sessions)
     from codex_connection import is_wsl_source
     if is_wsl_source():return None
     import psutil
@@ -201,6 +219,11 @@ def codex_conversation_url(session):
     return 'codex://threads/'+sid
 
 def open_codex(session=None):
+    if sys.platform=='darwin':
+        from codex_mac import open_desktop
+        url=codex_conversation_url(session) if session is not None else None
+        if not open_desktop(url):raise OSError('无法打开对应会话，请确认 Codex 已安装并支持会话链接' if url else '未找到 Codex 安装，请先从“应用程序”文件夹打开一次')
+        return
     from codex_connection import is_wsl_source,saved_paths
     if is_wsl_source():
         from wsl_codex import command

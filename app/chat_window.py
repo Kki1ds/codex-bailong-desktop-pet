@@ -11,6 +11,9 @@ from PySide6.QtWidgets import (QWidget,QVBoxLayout,QHBoxLayout,QComboBox,QPushBu
 from desktop_core import atomic_json
 from choice_controls import ChoiceCombo as QComboBox
 from number_controls import IntegerField as QSpinBox
+from platform_paths import MACOS
+# Where API keys live, for user-facing notes.
+KEY_NOTE='密钥保存在当前用户的 macOS 登录钥匙串中；本地免密服务可留空。应用更新后首次读取时，系统可能请求允许访问。' if MACOS else '密钥使用当前 Windows 用户的 DPAPI 加密保存；本地免密服务可留空。'
 from inline_confirmation import InlineConfirmation
 from chat_config import (CHAT_DEFAULT,load_chat_config,save_chat_config,load_provider_key,
     provider_key_present,clear_provider_key,delete_chat_provider)
@@ -76,7 +79,7 @@ class ProviderDialog(QDialog):
         self.prompt=QPlainTextEdit();self.prompt.setPlainText(self.config.get('system_prompt',CHAT_DEFAULT['system_prompt']));form.addRow('角色系统提示词',self.prompt)
         self.count=QSpinBox();self.count.setRange(2,200);self.count.setValue(self.config.get('history_messages',40));form.addRow('历史消息上限',self.count)
         self.chars=QSpinBox();self.chars.setRange(1000,200000);self.chars.setSingleStep(1000);self.chars.setValue(self.config.get('history_chars',24000));form.addRow('历史字符上限',self.chars)
-        note=QLabel('仅支持 Chat Completions；不支持 Responses 或 Anthropic 原生接口。\n仅主动发送时请求服务，Codex 会话不会自动发送。\n密钥使用当前 Windows 用户的 DPAPI 加密保存；本地免密服务可留空。');note.setWordWrap(True);note.setStyleSheet('font-size:11px;color:#706879;');layout.addWidget(note)
+        note=QLabel('仅支持 Chat Completions；不支持 Responses 或 Anthropic 原生接口。\n仅主动发送时请求服务，Codex 会话不会自动发送。\n'+KEY_NOTE);note.setWordWrap(True);note.setStyleSheet('font-size:11px;color:#706879;');layout.addWidget(note)
         row=QHBoxLayout();save=QPushButton('保存并设为当前服务');save.setProperty('role','primary');save.clicked.connect(self.save);row.addWidget(save)
         clear=QPushButton('清除此服务密钥');clear.setProperty('role','danger');clear.clicked.connect(self.clear_key);row.addWidget(clear);layout.addLayout(row)
         self.mutation_buttons.extend((save,clear))

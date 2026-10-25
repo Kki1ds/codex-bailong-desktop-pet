@@ -87,6 +87,7 @@ class MaintenanceTests(unittest.TestCase):
     def test_lightweight_maintenance_has_no_install_payload_action(self):
         with patch('installer.startup_preference',return_value=False):w=installer.Installer(maintenance=True)
         w.show();APP.processEvents();self.assertFalse(w.install_button.isVisible());self.assertFalse(w.startup.isChecked());self.assertIsNone(w.job);w.close();w.deleteLater();APP.processEvents()
+    @unittest.skipUnless(sys.platform=='win32','Windows installer manager')
     def test_application_manager_routes_before_pet_single_instance(self):
         import enhanced
         with patch.object(sys,'argv',['BailongEnhanced.exe','--manage']),patch('installer.maintenance_main',return_value=0) as manage:

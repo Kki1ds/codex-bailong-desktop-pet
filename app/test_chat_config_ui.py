@@ -12,13 +12,14 @@ from PySide6.QtWidgets import QApplication,QWidget,QDialog
 from chat_window import ProviderDialog,ChatWindow
 from chat_config import CHAT_DEFAULT,load_chat_config,load_provider_key,save_chat_config
 from desktop_core import atomic_json
-from desktop_services import SecretStore
+from secret_isolation import FileSecretStore as SecretStore,isolate_secrets
 
 APP=QApplication.instance() or QApplication([])
 
 
 class ChatConfigUiTests(unittest.TestCase):
     def setUp(self):
+        isolate_secrets(self)
         self.temp=tempfile.TemporaryDirectory();self.root=Path(self.temp.name);self.windows=[]
     def tearDown(self):
         for window in reversed(self.windows):

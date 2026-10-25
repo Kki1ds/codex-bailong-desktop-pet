@@ -11,6 +11,7 @@ from desktop import DesktopPet
 from desktop_core import atomic_json
 from chat_window import SessionStore,CHAT_DEFAULT
 from settings_draft import SettingsDraft
+from secret_isolation import isolate_secrets
 
 APP=QApplication.instance() or QApplication([])
 
@@ -34,6 +35,7 @@ class DraftTests(unittest.TestCase):
 
 class InteractionTests(unittest.TestCase):
     def setUp(self):
+        isolate_secrets(self)
         self.tmp=tempfile.TemporaryDirectory();self.root=Path(self.tmp.name)
         self.patches=[patch('enhanced.CONFIG',self.root/'settings.json'),patch('enhanced.STATE_DIR',self.root),
             patch('desktop.CONFIG',self.root/'settings.json'),patch('desktop.STATE_DIR',self.root),

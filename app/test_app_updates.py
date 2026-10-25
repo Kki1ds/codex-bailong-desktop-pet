@@ -117,6 +117,9 @@ class StagingTests(unittest.TestCase):
         prune_completed(self.cache,'0.7.3');self.assertFalse(paths['receipt'].parent.exists())
 
 class ControllerTests(unittest.TestCase):
+    def setUp(self):
+        # The update flow under test is the Windows one; macOS builds switch it off.
+        patcher=patch('update_controller.UNSUPPORTED',False);patcher.start();self.addCleanup(patcher.stop)
     def wait(self,condition):
         deadline=time.monotonic()+3
         while not condition():APP.processEvents();time.sleep(.003);self.assertLess(time.monotonic(),deadline)
