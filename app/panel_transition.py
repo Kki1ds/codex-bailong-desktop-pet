@@ -1,4 +1,5 @@
 """Fixed native canvas, blended snapshots and queued explicit navigation."""
+import sys
 from PySide6.QtCore import QObject,QVariantAnimation,QEasingCurve,QRect,QRectF,QPoint,Qt,QEvent,QTimer
 from PySide6.QtGui import QPainter,QPainterPath,QColor,QPen,QPixmap,QRegion
 from PySide6.QtWidgets import QWidget,QApplication
@@ -41,6 +42,7 @@ class NativeLanding(QWidget):
     def __init__(self,bubble):
         flags=Qt.WindowType.Tool|Qt.WindowType.FramelessWindowHint|Qt.WindowType.WindowTransparentForInput|Qt.WindowType.WindowDoesNotAcceptFocus
         super().__init__(bubble,flags);self.image=None;self.paints=0
+        if sys.platform=='darwin':from mac_native import overlay;overlay(self)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
@@ -176,6 +178,7 @@ class PanelTransition(QObject):
         self.cover.setGeometry(b.rect());self.cover.show();self.cover.raise_()
         b.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents,True)
         if b.windowHandle():b.windowHandle().setFlag(Qt.WindowType.WindowTransparentForInput,True)
+        if sys.platform=='darwin':from mac_native import refresh;refresh(b) # Qt recomputes the window level on flag changes
         if b.report:b.report.dismiss()
         self._end_preparation()
         self.animation.setDuration(DISMISS_MS);self.cover.repaint();self.animation.start()

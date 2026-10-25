@@ -857,7 +857,14 @@ def main():
             if index+1<len(sys.argv):
                 destination=Path(sys.argv[index+1]);destination.parent.mkdir(parents=True,exist_ok=True);save_json(destination,report)
         return 0
+    # macOS: raise_() must only order windows; Qt otherwise activates the app, and the bubble is re-raised every 700 ms.
+    if sys.platform=='darwin':os.environ.setdefault('QT_MAC_SET_RAISE_PROCESS','0')
     app=QApplication(sys.argv)
+    if sys.platform=='darwin':
+        from mac_native import set_accessory_app
+        set_accessory_app() # source runs: no Python Dock icon; the bundle sets LSUIElement
+        # The UI is painted light; a dark system appearance would turn native check boxes near-invisible.
+        app.styleHints().setColorScheme(Qt.ColorScheme.Light)
     app.setWindowIcon(QIcon(str(ROOT/'app/branding/bailong.ico')))
     from typography import install_ui_font
     install_ui_font(app)
@@ -890,6 +897,10 @@ def main():
         if peer.bytesAvailable():receive()
         peer.disconnected.connect(peer.deleteLater)
     server.newConnection.connect(incoming)
+    if sys.platform=='darwin':
+        # Opening the running bundle again sends a reopen event instead of starting a second process.
+        from mac_native import on_reopen
+        on_reopen(pet.recover)
     if hasattr(pet,'apply_surface_visibility'):pet.apply_surface_visibility()
     else:pet.show()
     if sys.platform=='win32' and pet.isVisible():ctypes.windll.user32.ShowWindow(int(pet.winId()),4)

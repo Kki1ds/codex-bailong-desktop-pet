@@ -35,6 +35,7 @@ class QuotaWorker(QThread):
 class Bubble(QWidget):
     def __init__(self):
         super().__init__(None, FLAGS)
+        if sys.platform=='darwin':from mac_native import overlay;overlay(self)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
         self.layout=QVBoxLayout(self); self.layout.setContentsMargins(13,10,13,10);self.layout.setSpacing(5)
@@ -69,6 +70,7 @@ class Bubble(QWidget):
 class Pet(QWidget):
     def __init__(self):
         super().__init__(None,FLAGS)
+        if sys.platform=='darwin':from mac_native import overlay;overlay(self)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
         self.setWindowTitle('白龙桌宠');self.setFixedSize(256,256)

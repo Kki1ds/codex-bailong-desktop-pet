@@ -1,5 +1,6 @@
 """Compact, accessible quota dials; full information remains in the details view."""
 import math
+import sys
 import time
 from PySide6.QtCore import Qt,QRectF,QSize,Signal,QTimer,QVariantAnimation,QEasingCurve,QAbstractAnimation
 from PySide6.QtGui import QColor,QFont,QFontMetrics,QPainter,QPen,QTextLayout,QTextOption,QIcon,QPixmap,QPolygonF,QPalette
@@ -483,6 +484,7 @@ class CompactBubble(Bubble):
         through=bool(getattr(self.owner_pet(),'settings',{}).get('mouse_through',False)) and not editing
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents,through)
         if self.windowHandle():self.windowHandle().setFlag(Qt.WindowType.WindowTransparentForInput,through)
+        if sys.platform=='darwin':from mac_native import refresh;refresh(self) # Qt recomputes the window level on flag changes
     def navigation(self):
         from settings_controls import SlidingSegments
         toolbar=QWidget();toolbar.setObjectName('detail_shortcuts');toolbar.setFixedHeight(32)

@@ -106,7 +106,7 @@ class SettingsDialog(QDialog):
         appearance=self.tab('面板与显示')
         self.section(appearance,'显示内容',None)
         self.check(appearance,'panel_detached','面板与人物分别移动')
-        for key,title in [('character_visible','显示人物'),('on_top','始终置顶'),('video_fullscreen_yield','全屏视频时让位'),('mouse_through','鼠标穿透（可从托盘恢复）'),('bubble','显示面板'),('quota_visible','显示额度和重置时间')]:
+        for key,title in [('character_visible','显示人物'),('on_top','始终置顶'),('video_fullscreen_yield','全屏应用时让位' if MACOS else '全屏视频时让位'),('mouse_through','鼠标穿透（可从托盘恢复）'),('bubble','显示面板'),('quota_visible','显示额度和重置时间')]:
             self.check(appearance,key,title)
             if key=='video_fullscreen_yield':
                 note=QLabel('完成提醒确认后，视频仍全屏则继续让位；退出全屏恢复当前置顶设置。')

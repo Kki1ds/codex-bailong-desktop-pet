@@ -112,11 +112,18 @@ class DesktopPet(EnhancedPet):
         if monitor:self.codex_timer.start()
         self.tray.setToolTip('白龙桌宠 '+VERSION+' · 点击恢复 / 右键设置')
         self.tray.activated.disconnect()
-        self.tray.activated.connect(lambda reason:self.recover() if reason in (QSystemTrayIcon.ActivationReason.Trigger,QSystemTrayIcon.ActivationReason.DoubleClick) else None)
+        # The macOS menu-bar item opens its menu on a left click; recovering then would undo settings the user only meant to view.
+        reasons=(QSystemTrayIcon.ActivationReason.DoubleClick,) if sys.platform=='darwin' else (QSystemTrayIcon.ActivationReason.Trigger,QSystemTrayIcon.ActivationReason.DoubleClick)
+        self.tray.activated.connect(lambda reason:self.recover() if reason in reasons else None)
         self.tray_menu=QMenu();self.tray_menu.aboutToShow.connect(self.populate_tray);self.tray.setContextMenu(self.tray_menu)
         if monitor and sys.platform=='win32':
             from video_yield import VideoYield
             self.video_yield=VideoYield(self)
+        elif sys.platform=='darwin':
+            self.bubble.status_indicator.changed.connect(self.sync_full_screen)
+            if monitor:
+                from mac_native import FullScreenGuard
+                self.full_screen_guard=FullScreenGuard(self)
         self.save_settings()
         self.schedule_animation()
 
@@ -608,6 +615,7 @@ class DesktopPet(EnhancedPet):
         if self._visibility_ready:self.apply_surface_visibility()
         if values.get("bubble") is False:self.bubble.hide()
         if self.video_yield:self.video_yield.reconcile()
+        elif sys.platform=='darwin':self.sync_full_screen()
         self.next_chain=time.monotonic()+self.settings['random_interval'];self.next_talk=time.monotonic()+self.settings['talk_min']
         self.schedule_animation()
         if save:
@@ -735,7 +743,17 @@ class DesktopPet(EnhancedPet):
                 if visible:
                     panel.setWindowState(state);panel.show()
                     if active:panel.raise_();panel.activateWindow()
+    def sync_full_screen(self):
+        """macOS: overlays stay out of other apps' full-screen Spaces unless yielding is off or a completion is unread."""
+        from mac_native import set_full_screen,set_yield
+        s=self.settings;indicator=getattr(self.bubble,'status_indicator',None)
+        show=not s.get('video_fullscreen_yield',True) or (indicator is not None and bool(indicator.unread))
+        # Yielding hides overlays at any level; the auxiliary Space behaviour only matters while pinned on top.
+        set_yield(not show);set_full_screen(bool(s.get('on_top') and show))
     def show_panel(self,panel):
+        if sys.platform=='darwin':
+            from mac_native import activate_app
+            activate_app() # raise_() no longer activates the app on macOS; user-opened panels need keyboard focus
         if not panel.isWindow():
             self.stop_walk();self.throwing=False;self._desktop_hidden=False;self.apply_surface_visibility()
             # First activation can synchronously polish the native editor and

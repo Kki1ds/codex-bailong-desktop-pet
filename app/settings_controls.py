@@ -1,5 +1,6 @@
 """Small native controls using the companion's existing typography and palette."""
 import os
+import sys
 from functools import lru_cache
 from PySide6.QtCore import Qt,QRectF,QSize,Signal,QVariantAnimation,QEasingCurve
 from PySide6.QtGui import QPainter,QColor,QPen,QFontMetrics
@@ -17,6 +18,9 @@ def motion_enabled():
             enabled=ctypes.c_int(1)
             if ctypes.windll.user32.SystemParametersInfoW(0x1042,0,ctypes.byref(enabled),0):return bool(enabled.value)
         except (OSError,AttributeError):pass
+    elif sys.platform=='darwin':
+        from mac_native import reduce_motion
+        return not reduce_motion()
     return True
 
 

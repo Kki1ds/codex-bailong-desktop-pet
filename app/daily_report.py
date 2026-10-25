@@ -1,5 +1,5 @@
 """Manually opened, animated daily report anchored above the status bubble."""
-import math,random
+import math,random,sys
 from html import escape
 from datetime import datetime
 from PySide6.QtCore import Qt,QRect,QRectF,QPointF,QPoint,QSize,QEvent,Signal,QVariantAnimation,QEasingCurve,QAbstractAnimation,QTimer
@@ -160,7 +160,9 @@ class DailyReport(QWidget):
     def __init__(self,bubble):
         flags=Qt.WindowType.Tool|Qt.WindowType.FramelessWindowHint
         if bubble.windowFlags()&Qt.WindowType.WindowStaysOnTopHint:flags|=Qt.WindowType.WindowStaysOnTopHint
-        super().__init__(bubble,flags);self.bubble=bubble;self.requested=False;self.page='overview';self.period='all';self.selected_model=None
+        super().__init__(bubble,flags)
+        if sys.platform=='darwin':from mac_native import overlay;overlay(self)
+        self.bubble=bubble;self.requested=False;self.page='overview';self.period='all';self.selected_model=None
         self.snapshot={};self.natural_height=412;self._overview_height=412;self.fraction=0.;self._building=False
         self.book_index=0;self._book_opened=False
         self._animating=False;self._frame=None;self._pending_rebuild=False;self._syncing=False;self._series_cache={}
@@ -475,6 +477,7 @@ class DailyReport(QWidget):
         # Do not recreate the layered window with QWidget.setWindowFlags.
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents,value)
         if self.windowHandle():self.windowHandle().setFlag(Qt.WindowType.WindowTransparentForInput,value)
+        if sys.platform=='darwin':from mac_native import refresh;refresh(self) # Qt recomputes the window level on flag changes
     def _prepare_frame(self):
         self.page_fade.clear()
         self.refresh_button.freeze_motion('surface')
