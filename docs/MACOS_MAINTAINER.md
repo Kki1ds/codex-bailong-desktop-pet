@@ -9,6 +9,7 @@
 - 当前 macOS 的 Chrome 将原生全屏拆成工具栏和内容窗口；检测需按同一 PID 合并矩形覆盖，不能只比较单个窗口。必须保留普通最大化留下菜单栏间隙的反例。
 - storage_locations 的用户目录必须走 platform_paths；仅规范化 /var、/tmp、/etc 的系统别名，继续拒绝用户符号链接。
 - 原生 HWND/GDI 测试的 platformName 模拟不会提供 WinDLL；跨平台过渡测试需要单独模拟 native_landing.publish，Windows ABI 测试只在 Windows 执行。
+- GitHub macOS runner 可能开启减少动态效果；断言中间动画帧的测试须显式固定 motion_enabled，另保留减少动态效果测试。
 - Mac 菜单栏使用原生 tooltip，不安装 Win32 鼠标钩子；卡片提示窗口仍注册 mac_native.overlay。
 
 ## 仓库与分支

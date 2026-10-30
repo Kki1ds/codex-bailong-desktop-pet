@@ -35,6 +35,9 @@ class PanelTests(unittest.TestCase):
             with self.assertRaises(RuntimeError):b.toggle_details()
         self.assertEqual(b.windowOpacity(),opacity);b.size_transition.cancel()
     def setUp(self):
+        # Animation assertions must not depend on the runner's accessibility preference.
+        from unittest.mock import patch
+        motion=patch('settings_controls.motion_enabled',return_value=True);motion.start();self.addCleanup(motion.stop)
         self.b=CompactBubble();self.b.status='检查中';self.b.redraw();self.b.show();APP.processEvents()
     def tearDown(self):
         self.b.size_transition.complete();self.b.close();self.b.deleteLater();APP.processEvents()
