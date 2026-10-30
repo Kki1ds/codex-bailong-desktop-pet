@@ -2,7 +2,7 @@
 
 ![文章海报](docs/media/cover.png)
 
-一只陪你使用 Codex 的 Windows 白龙桌宠：在桌面查看任务状态、接收完成提醒、追踪账户额度和 Token 用量。基于 [jingh12312-rgb/bailong-desktop-pet](https://github.com/jingh12312-rgb/bailong-desktop-pet) 持续改造，上游 Windows 版当前公开版本 **v1.2.1**。本 fork 另外维护 macOS 社区版（Apple Silicon），当前 **1.0.1-mac.1**，基于上游 v1.0.1。
+一只陪你使用 Codex 的 Windows 白龙桌宠：在桌面查看任务状态、接收完成提醒、追踪账户额度和 Token 用量。基于 [jingh12312-rgb/bailong-desktop-pet](https://github.com/jingh12312-rgb/bailong-desktop-pet) 持续改造，上游 Windows 版当前公开版本 **v1.2.1**。本 fork 另外维护 macOS 社区版（Apple Silicon），当前 **1.2.1-mac.1**，基于上游 v1.2.1。
 
 **[下载 macOS 社区版](https://github.com/Kki1ds/codex-bailong-desktop-pet/releases)** | [上游 Windows 安装器](https://github.com/Wunsch2048/codex-bailong-desktop-pet/releases/tag/v1.1.0) [查看上游更新](https://github.com/Wunsch2048/codex-bailong-desktop-pet/releases/latest) | [快速部署](docs/快速部署说明.txt) | [全部新增功能](docs/新增功能说明.txt) | [开发说明](docs/DEVELOPMENT.md) | [迭代历史](docs/迭代历史.txt)
 
@@ -12,16 +12,16 @@ macOS 社区版由 [Kki1ds](https://github.com/Kki1ds) 在本 fork 维护，不�
 
 | 项目 | macOS 社区版 |
 | --- | --- |
-| 基于 | 上游 v1.0.1（8dd8617） |
-| 测试环境 | MacBook Pro M1 Pro，内置屏加外接 5K 显示器，ChatGPT.app 内置 Codex CLI |
+| 基于 | 上游 v1.2.1（c725ede） |
+| 测试环境 | Apple Silicon，macOS 27.2，内置屏与外接显示器，ChatGPT.app 内置 Codex CLI |
 | 不在范围内 | Intel Mac 未测试；不声明兼容所有 macOS 版本（最低设为 macOS 12） |
 
 ### 下载
 
 | 文件 | 用法 |
 | --- | --- |
-| `BailongEnhanced-1.0.1-mac.1-macos-arm64.dmg` | 双击打开，把 `BailongEnhanced.app` 拖到旁边的“Applications”文件夹 |
-| `BailongEnhanced-1.0.1-mac.1-macos-arm64.dmg.sha256` | 在下载目录运行 `shasum -a 256 -c BailongEnhanced-1.0.1-mac.1-macos-arm64.dmg.sha256` 校验 |
+| `BailongEnhanced-1.2.1-mac.1-macos-arm64.dmg` | 双击打开，把 `BailongEnhanced.app` 拖到旁边的“Applications”文件夹 |
+| `BailongEnhanced-1.2.1-mac.1-macos-arm64.dmg.sha256` | 在下载目录运行 `shasum -a 256 -c BailongEnhanced-1.2.1-mac.1-macos-arm64.dmg.sha256` 校验 |
 
 应用约 136 MB，自带 Python 与 Qt，无需安装其他软件，只需本机已安装 Codex 桌面端（ChatGPT.app）或 Codex CLI。安装包只含卡片，人物动画在 设置 → 角色与素材 中从上游 Release 下载，逐一校验后使用。
 
@@ -33,14 +33,14 @@ macOS 社区版由 [Kki1ds](https://github.com/Kki1ds) 在本 fork 维护，不�
 
 ### 已验证
 
-Codex 任务状态与完成提醒、点击跳转到对应会话、额度环与日报、轻量动画下载与播放、登录启动与随 Codex 启动、全屏应用时让位、多桌面空间、深色模式下保持浅色界面、钥匙串读写删除、运行中再次打开时找回组件。步骤和结果见 [验收记录](docs/MACOS.md#验收记录)。
+本次完成 Codex 本机连接、额度与统计、轻量动画播放、卡片和日报切换、钥匙串读写删除，以及 Chrome 原生全屏和视频全屏让位验收。新增可配置额度变化提醒、菜单栏额度环和动画目录迁移。全屏期间完成提醒保持未读，退出后恢复显示。测试与性能数据见 [1.2.1-mac.1 发布说明](docs/releases/v1.2.1-mac.1.md)，此前的登录启动、多桌面和外观验收单列为历史记录。
 
 ### 已知限制
 
 - 没有应用内更新，不要在 macOS 上使用上游的 Windows 安装器或补丁包；新版请到本仓库 Releases 下载。
 - 不支持 WSL 连接来源（Windows 专属），设置中不显示该选项。
-- 全屏让位只用 Chrome 全屏视频实测过；未用真实模型服务测试闲聊发送。
-- 播放人物动画时桌宠进程约占单核 37% CPU，主要来自 WebP 软件解码，与 Windows 版相同。
+- 全屏让位本次用 Chrome 原生全屏与视频全屏实测；未用真实模型服务测试闲聊发送。
+- 本次轻量动画设置页短采样约占单核 21.8% CPU，全屏隐藏后约 1.4%；详细条件见发布说明。
 - 其余限制见 [docs/MACOS.md](docs/MACOS.md#已知限制)。
 
 ### 维护范围
@@ -69,7 +69,7 @@ brew install python@3.12
 | 平台 | 入口与维护者 | 当前说明的支持范围 |
 | --- | --- | --- |
 | Linux / Niri / KDE | [helantianshen 的社区仓库](https://github.com/helantianshen/codex-bailong-desktop-pet#linux--niri--kde) | niri 原生 Wayland 预览版；KDE Plasma X11 / XWayland 源码支持，限制见作者说明 |
-| macOS / Apple Silicon | [Kki1ds 的社区预览包](https://github.com/Kki1ds/codex-bailong-desktop-pet/releases/tag/v1.0.1-mac.1) | 仅 Apple Silicon 的 DMG 预览包；未公证，无应用内更新，支持范围与限制见作者说明 |
+| macOS / Apple Silicon | [Kki1ds 的社区预览包](https://github.com/Kki1ds/codex-bailong-desktop-pet/releases/tag/v1.2.1-mac.1) | 仅 Apple Silicon 的 DMG 预览包；未公证，无应用内更新，支持范围与限制见作者说明 |
 
 社区版本由对应作者独立维护、测试和发布，安装说明与平台问题反馈请前往对应仓库。主仓库发布的安装包和更新补丁适用于 Windows x64。
 
