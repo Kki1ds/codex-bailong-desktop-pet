@@ -16,7 +16,8 @@ def entry_text():
     # Windows: UTF-16 VBS in Startup; macOS: LaunchAgent plist.
     path=cs.startup_path()
     if path.suffix=='.plist':import plistlib;return ' '.join(plistlib.loads(path.read_bytes())['ProgramArguments'])
-    return path.read_text(encoding='utf-16')
+    entry=__import__('windows_entries').read_shortcut(path)
+    return entry['target']+' '+entry['arguments']
 def settle(pet):
     for _ in range(4):APP.processEvents();pet.bubble.size_transition.complete()
     APP.sendPostedEvents(None,QEvent.Type.DeferredDelete)

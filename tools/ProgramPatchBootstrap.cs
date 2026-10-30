@@ -16,6 +16,13 @@ using System.Threading;
 using System.Web.Script.Serialization;
 using System.Windows.Forms;
 
+[assembly: AssemblyTitle("白龙桌宠程序安装器")]
+[assembly: AssemblyProduct("白龙桌宠增强版")]
+[assembly: AssemblyCompany("Wunsch2048")]
+[assembly: AssemblyDescription("校验离线程序包后打开安装界面；开机启动由用户选择")]
+[assembly: AssemblyVersion("@@VERSION@@.0")]
+[assembly: AssemblyFileVersion("@@VERSION@@.0")]
+
 static class ProgramPatchBootstrap {
     const string VersionNumber = "@@VERSION@@";
     const string PayloadSha = "@@PAYLOAD_SHA@@";
@@ -74,6 +81,17 @@ static class ProgramPatchBootstrap {
     }
     static string InstalledSource(string local) {
         var install=Path.Combine(local,"Programs","BailongEnhanced");
+        if(Environment.GetEnvironmentVariable("BAILONG_ISOLATED")!="1") {
+            using(var key=Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\BailongEnhanced")) {
+                if(key!=null) {
+                    var location=key.GetValue("InstallLocation") as string;
+                    var data=key.GetValue("DataLocation") as string;
+                    bool bound=!String.IsNullOrWhiteSpace(data) && String.Equals(Path.GetFullPath(data).TrimEnd('\\'),Path.Combine(local,"BailongEnhanced").TrimEnd('\\'),StringComparison.OrdinalIgnoreCase);
+                    bool legacy=String.IsNullOrWhiteSpace(data) && !String.IsNullOrWhiteSpace(location) && String.Equals(Path.GetFullPath(location).TrimEnd('\\'),Path.GetFullPath(install).TrimEnd('\\'),StringComparison.OrdinalIgnoreCase);
+                    if((bound || legacy) && !String.IsNullOrWhiteSpace(location) && Path.IsPathRooted(location) && String.Equals(Path.GetFileName(location.TrimEnd('\\')),"BailongEnhanced",StringComparison.OrdinalIgnoreCase)) install=Path.GetFullPath(location);
+                }
+            }
+        }
         var path=Path.Combine(install,"installations.json");
         if(!File.Exists(path)) return null;
         var current=Text(ReadJson(path),"current");
@@ -84,6 +102,12 @@ static class ProgramPatchBootstrap {
     static string FindMedia(string local,string old,string id,Dictionary<string,object> media) {
         var roots=new List<string>();
         if(old!=null) roots.Add(Path.Combine(old,"outputs","白龙桌宠素材"));
+        var pointer=Path.Combine(local,"BailongEnhanced","material-location.json");
+        if(File.Exists(pointer)) {
+            var value=ReadJson(pointer);var location=Text(value,"path");
+            if(Convert.ToInt32(value["schema"])!=1 || !Path.IsPathRooted(location)) throw new InvalidDataException("动画目录配置无效");
+            roots.Add(Safe(Path.GetFullPath(location),"light/"+id));
+        }
         roots.Add(Safe(Path.Combine(local,"BailongEnhanced","materials"),"light/"+id));
         foreach(var root in roots) {
             bool valid=true;
@@ -171,8 +195,9 @@ static class ProgramPatchBootstrap {
             if(!acquired) throw new InvalidOperationException("另一个程序补丁正在准备，请稍后重试。");
             var source=Stage(payload);
             if(probe!=null) { AtomicJson(Path.GetFullPath(probe),new {passed=true,version=VersionNumber,source=source,payloadSha256=PayloadSha});return 0; }
-            var process=Process.Start(new ProcessStartInfo {FileName=Safe(source,"BailongEnhanced.exe"),Arguments="--apply-program-update",WorkingDirectory=source,UseShellExecute=false,CreateNoWindow=true});
-            process.WaitForExit();return process.ExitCode;
+            using(var process=Process.Start(new ProcessStartInfo {FileName=Safe(source,"BailongEnhanced.exe"),Arguments="--apply-program-update",WorkingDirectory=source,UseShellExecute=false,CreateNoWindow=false,WindowStyle=ProcessWindowStyle.Normal})) {
+                process.WaitForExit();return process.ExitCode;
+            }
         } catch(Exception error) {
             if(probe!=null) AtomicJson(Path.GetFullPath(probe),new {passed=false,error=error.Message});
             else MessageBox.Show("程序补丁准备失败："+error.Message+"\n原有程序和用户数据保持可用。","程序补丁包 "+VersionNumber,MessageBoxButtons.OK,MessageBoxIcon.Error);

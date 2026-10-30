@@ -72,3 +72,12 @@ class SystemOwnerTests(unittest.TestCase):
             self.assertEqual(lookup.call_count,4) # cached per pid
     def test_lookup_failure_keeps_yielding(self):
         with patch.object(m,'_owner_path',side_effect=OSError('gone')):self.assertFalse(m.system_owner(5))
+
+class DisplayCoverageTests(unittest.TestCase):
+    def test_split_browser_toolbar_and_content_cover_one_display(self):
+        self.assertTrue(m.covers_display([(0,0,1169,158),(0,122,1169,1678)],(0,0,1169,1800)))
+    def test_maximized_window_leaving_menu_bar_is_not_fullscreen(self):
+        self.assertFalse(m.covers_display([(0,27,1169,1773)],(0,0,1169,1800)))
+    def test_gaps_and_other_display_do_not_count(self):
+        self.assertFalse(m.covers_display([(0,0,100,40),(0,41,100,59)],(0,0,100,100)))
+        self.assertFalse(m.covers_display([(100,0,100,100)],(0,0,100,100)))

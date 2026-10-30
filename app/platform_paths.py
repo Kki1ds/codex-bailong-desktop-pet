@@ -18,7 +18,11 @@ def local_appdata():
 
 def data_dir():return local_appdata()/APP_ID
 
-def install_root():return local_appdata()/'Programs'/APP_ID
+def install_root():
+    if WINDOWS:
+        from storage_locations import install_root as registered_root
+        return registered_root()
+    return local_appdata()/'Programs'/APP_ID
 
 def startup_folder():
     """Windows per-user Startup folder; macOS uses a LaunchAgent instead."""

@@ -102,7 +102,7 @@ def overlay(widget):
     widget.installEventFilter(_watcher);_overlays.add(widget)
 
 def set_full_screen(value):
-    """Allow overlays into other apps' full-screen Spaces (yield off, or an unread completion)."""
+    """Allow overlays into other apps' full-screen Spaces when yielding is off."""
     global _full_screen
     if _full_screen==bool(value):return
     _full_screen=bool(value)
@@ -146,6 +146,20 @@ def system_owner(pid):
         except (OSError,AttributeError):_owners[pid]=False
     return _owners[pid]
 
+def covers_display(rectangles,display):
+    """A full-screen browser may use separate toolbar and content NSWindows."""
+    x,y,w,h=display;right=x+w;bottom=y+h
+    clipped=[(max(x,a),max(y,b),min(right,a+c),min(bottom,b+d)) for a,b,c,d in rectangles
+        if a<right and a+c>x and b<bottom and b+d>y]
+    cuts=sorted({y,bottom,*[v for a,b,c,d in clipped for v in (b,d)]})
+    for lo,hi in zip(cuts,cuts[1:]):
+        edge=x
+        for left,end in sorted((a,c) for a,b,c,d in clipped if b<=lo and d>=hi):
+            if left>edge:return False
+            edge=max(edge,end)
+        if edge<right:return False
+    return bool(clipped)
+
 def full_screen_displays(own_pid):
     """Quartz bounds (Qt global coordinates) of displays showing another app's full-screen window."""
     cg,cf,keys=_quartz()
@@ -155,7 +169,7 @@ def full_screen_displays(own_pid):
     # On-screen windows of the current Spaces only; bounds, layer and pid need no screen-recording permission.
     windows=cg.CGWindowListCopyWindowInfo(1|16,0)
     if not windows:return []
-    found=[]
+    found=[];owners={}
     try:
         for i in range(cf.CFArrayGetCount(windows)):
             info=cf.CFArrayGetValueAtIndex(windows,i);layer=ctypes.c_int64();pid=ctypes.c_int64();rect=_Rect()
@@ -163,9 +177,10 @@ def full_screen_displays(own_pid):
             if not cf.CFNumberGetValue(cf.CFDictionaryGetValue(info,keys['OwnerPID']),4,ctypes.byref(pid)) or pid.value==own_pid:continue
             if not cg.CGRectMakeWithDictionaryRepresentation(cf.CFDictionaryGetValue(info,keys['Bounds']),ctypes.byref(rect)):continue
             if system_owner(pid.value):continue
-            # A normal desktop keeps the menu bar, so only a full-screen Space covers a whole display at layer 0.
-            for d in displays:
-                if (rect.x,rect.y,rect.w,rect.h)==(d.x,d.y,d.w,d.h) and (d.x,d.y,d.w,d.h) not in found:found.append((d.x,d.y,d.w,d.h))
+            owners.setdefault(pid.value,[]).append((rect.x,rect.y,rect.w,rect.h))
+        for d in displays:
+            bounds=(d.x,d.y,d.w,d.h)
+            if any(covers_display(rects,bounds) for rects in owners.values()):found.append(bounds)
     finally:cf.CFRelease(windows)
     return found
 
@@ -207,6 +222,13 @@ class FullScreenGuard(QObject):
                 if hide or widget in _concealed:_conceal(widget,hide)
                 yielded|=hide
             except (RuntimeError,OSError,AttributeError):continue
+        if hasattr(self.pet,'set_fullscreen_yield'):
+            # Keep checking retained geometry after Qt surfaces are hidden.
+            targets=[self.pet] if self.pet.settings.get('character_visible',True) else []
+            if self.pet.bubble.enabled:targets.append(self.pet.bubble)
+            yielded=any(any(g.x()<x+w and x<g.x()+g.width() and g.y()<y+h and y<g.y()+g.height()
+                for x,y,w,h in self.displays) for g in (widget.frameGeometry() for widget in targets))
+            self.pet.set_fullscreen_yield(yielded)
         self.pet._video_yielded=yielded
 
 def set_yield(value):

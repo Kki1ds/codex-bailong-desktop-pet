@@ -12,8 +12,7 @@ def find_ffmpeg():
     candidates.append(shutil.which('ffmpeg.exe') or shutil.which('ffmpeg') or '')
     # Previous protected installs already contain the converter. Reuse it only
     # when the user requests WebM import, without copying it to every upgrade.
-    from platform_paths import install_root
-    root=install_root()
+    root=__import__('storage_locations').install_root()
     try:
         manifest=json.loads((root/'installations.json').read_text(encoding='utf-8'))
         for name in manifest.get('versions',[]):

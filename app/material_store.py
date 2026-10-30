@@ -31,7 +31,12 @@ class MaterialStore:
     def __init__(self,app_root,state_dir,catalog_override=None):
         self._known_availability={}
         self.app_root=Path(app_root);self.state=Path(state_dir);self.base=self.app_root/'outputs/白龙桌宠素材'
-        self.cache=self.state/'materials';self.preference=self.state/'material-preferences.json'
+        from storage_locations import material_root
+        self.location_error=''
+        try:self.cache=material_root(self.state)
+        except (OSError,ValueError,KeyError,TypeError) as exc:
+            self.cache=self.state/'materials';self.location_error='动画目录配置不可读，请重新选择存储位置'
+        self.preference=self.state/'material-preferences.json'
         catalog_path=self.app_root/'app/material_catalog.json'
         self.catalog=json.loads(catalog_path.read_text(encoding='utf-8')) if catalog_path.is_file() else None
         self.bundled_catalog=self.catalog;self.patch_previous=None
@@ -49,7 +54,10 @@ class MaterialStore:
                 for f in tier['files']:
                     checked(self.base,f['path'])
                     if not 0<f['bytes']<2**31 or len(f['sha256'])!=64:raise MaterialError('素材校验信息无效')
-        try:prefs=json.loads(self.preference.read_text(encoding='utf-8'));self.preferred=prefs['tier']
+        try:
+            prefs=json.loads(self.preference.read_text(encoding='utf-8'))
+            if not isinstance(prefs,dict):raise ValueError('画质偏好应为对象')
+            self.preferred=prefs['tier']
         except (OSError,ValueError,KeyError):prefs={};self.preferred='light'
         self.card_only=bool(prefs.get('cardOnly',False))
         if self.preferred not in ('light','hd'):self.preferred='light'
@@ -139,6 +147,7 @@ class MaterialStore:
         self._known_availability[tier]=True
 
     def ensure(self,tier,cancel=lambda:False,progress=lambda n,t,p:None,opener=None):
+        if self.location_error:raise MaterialError(self.location_error)
         if not self.catalog:raise MaterialError('当前版本没有可切换的素材目录')
         root=self.tier_root(tier)
         if self.available(tier):self.verify(root,tier,cancel,progress);return root
