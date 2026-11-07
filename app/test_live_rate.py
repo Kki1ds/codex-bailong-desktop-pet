@@ -62,7 +62,11 @@ class LiveRateTests(unittest.TestCase):
         import time
         from PySide6.QtTest import QTest
         card=LiveRateCard();card.resize(121,20);card.show();APP.processEvents()
-        card.set_data(dict(rate=42.6,expires=time.monotonic()+.02));QTest.qWait(60)
+        card.set_data(dict(rate=42.6,expires=time.monotonic()+.02))
+        # Hosted Qt delivery can be delayed; wait for the observable expiry,
+        # without injecting another worker sample or calling the handler.
+        deadline=time.monotonic()+2
+        while card.value['rate'] is not None and time.monotonic()<deadline:QTest.qWait(10)
         self.assertIsNone(card.value['rate']);self.assertFalse(card.expiry.isActive())
         card.close();card.deleteLater();APP.processEvents()
     @patch('live_rate.time.time',return_value=1100)
