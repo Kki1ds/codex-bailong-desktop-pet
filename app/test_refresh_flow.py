@@ -67,7 +67,7 @@ class PipelineTests(unittest.TestCase):
             closing=False,bubble=SimpleNamespace(
                 set_refresh_busy=Mock(),finish_refresh=Mock(),report=SimpleNamespace(
                     set_refresh_busy=Mock(),finish_refresh=Mock()),
-                set_token_busy=Mock(),token_snapshot={'total':321,'report':{'total_tokens':321}},
+                set_token_busy=Mock(),set_live_today=Mock(),token_snapshot={'total':321,'report':{'total_tokens':321}},
                 redraw=Mock()),
             refresh_timeout=SimpleNamespace(start=Mock(),stop=Mock()),
             activity=None,position_bubble=Mock())
@@ -82,6 +82,7 @@ class PipelineTests(unittest.TestCase):
         EnhancedPet.refresh_all(pet);EnhancedPet.refresh_all(pet)
         for starter in (pet.refresh_quota,pet.refresh_tokens,pet.refresh_reset_feed):
             starter.assert_called_once()
+        pet.refresh_quota.assert_called_once_with(manual=True)
         EnhancedPet.refresh_report(pet)
         self.assertEqual(pet.refresh_tokens.call_count,2)
         pet.refresh_flow.result('token',2,True)

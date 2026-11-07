@@ -2,6 +2,10 @@
 
 在不改变 Windows 行为的前提下，让桌宠在 Apple Silicon Mac 上运行。macOS 版是社区维护的移植，由 [Kki1ds](https://github.com/Kki1ds) 在 fork 中维护，不是上游官方版本。授权边界见 NOTICE.md，与 Windows 版相同。
 
+## 开发分支（未发布）
+
+`codex/macos-1.6.0` 正在移植上游 v1.6.0，候选版本为 1.6.0-mac.1，包含项目成本、自动价表、主题、实时数字、大卡片及四种走动模式。Mac 窗口避让通过系统提供的前台应用窗口边界规划路线。公开安装仍使用下面的 1.2.1-mac.1 入口。[候选验证与待验收项目](releases/v1.6.0-mac.1.md)。
+
 ## 下载与安装
 
 1. 在 [Releases](https://github.com/Kki1ds/codex-bailong-desktop-pet/releases) 下载 `BailongEnhanced-<版本>-macos-arm64.dmg`，只支持 Apple Silicon。可用同名 `.sha256` 文件校验：`shasum -a 256 -c <文件名>.sha256`。

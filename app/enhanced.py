@@ -1,4 +1,7 @@
 """Bailong desktop companion with Codex status and account data."""
+from storage_locations import configure_data_environment
+configure_data_environment()
+from theme_registry import color as theme_color
 import ctypes
 import json
 import math
@@ -47,10 +50,14 @@ class ActivityThread(QThread):
         super().__init__(parent)
         self.stop=threading.Event()
         self.tail=RolloutTail(home)
+        from live_rate import LiveOutputRate
+        self.output_rate=LiveOutputRate();self.tail.rate_observer=self.output_rate.ingest;self.last_output_rate=None
         from codex_connection import is_wsl_source
         from wsl_codex import state_dir
         self.wsl=is_wsl_source(self.tail.home);self.session_dir=state_dir(STATE_DIR,self.tail.home)
         self.token_index=TokenUsageIndex(STATE_DIR/'token-usage.sqlite3',home);self.last_token_scan=0;self.token_wake=threading.Event();self.token_reader=None
+        from live_today import LiveTodayTotal
+        self.today_total=LiveTodayTotal(self.token_index.path);self.tail.usage_observer=self.today_total.ingest;self.last_live_today=None
         self.week_cycle=None
         self.token_runs=RefreshRuns()
         self.last_presence_scan=0;self.presence_reader=None;self.desktop_open=None;self.last_read_scan=0;self.seed_status_sent=False;self.last_name_scan=-10;self.conversation_names={}
@@ -86,13 +93,14 @@ class ActivityThread(QThread):
                 if self.presence_reader is None or not self.presence_reader.is_alive():
                     self.presence_reader=threading.Thread(target=self.read_presence,name='BailongCodexPresence',daemon=True);self.presence_reader.start()
             try:
-                from session_read_state import session_id,active_conversations,conversation_names
+                from session_read_state import session_id,active_conversations,conversation_names,terminal_conversations
                 from enhanced_core import Session
                 try:pending=json.loads((self.session_dir/'task-notifications.json').read_text(encoding='utf-8')).get('unread',[])
                 except (OSError,ValueError,AttributeError):pending=[]
                 pending=[k for k in pending if isinstance(k,list) and len(k)==2 and all(isinstance(v,str) for v in k)]
                 seeds=[]
-                if time.monotonic()-self.last_active_scan>=15:
+                history_due=time.monotonic()-self.last_active_scan>=15
+                if history_due:
                     self.last_active_scan=time.monotonic();seeds=[] if self.wsl else active_conversations(self.tail.home)
                     existing={session_id(s) for s in self.tail.reducer.sessions}
                     for e in seeds:
@@ -101,11 +109,25 @@ class ActivityThread(QThread):
                 with self.context_lock:displayed=self.displayed;visited=self.visited
                 self.targets.sync(self.tail.reducer.sessions,pending,displayed,visited)
                 self.tail.set_pins(self.targets.pinned());batch=self.tail.poll()
+                live_today=self.today_total.snapshot()
+                if live_today is not None and live_today!=self.last_live_today:
+                    self.last_live_today=live_today;self.event.emit(dict(kind='live_today_tokens',value=live_today))
+                live_rate=self.output_rate.snapshot()
+                for item in live_rate['details']:
+                    record=self.tail.reducer.sessions.get(item['session'])
+                    item['name']=self.conversation_names.get(session_id(item['session'])) or (record.title if record else '') or '会话 '+session_id(item['session'])[:8]
+                if live_rate!=self.last_output_rate:
+                    self.last_output_rate=live_rate;self.event.emit(dict(kind='live_output_rate',value=live_rate))
                 if not self.seed_status_sent:
                     self.seed_status_sent=True
                     states={session_id(sid):v for sid,v in self.tail.reducer.sessions.items()}
                     batch.extend(e for e in seeds if not states.get(session_id(e['session']),Session()).done)
                 self.targets.sync(self.tail.reducer.sessions,pending,displayed,visited)
+                if history_due and not self.wsl:
+                    unfinished={session_id(sid):s.turn for sid,s in self.tail.reducer.sessions.items() if not s.done and not s.source_hidden and s.turn}
+                    ids=self.targets.choose('terminal',128,unfinished)
+                    for sid,turn,status in terminal_conversations(self.tail.home,[(sid,unfinished[sid]) for sid in ids]):
+                        batch.extend(self.tail.reducer.terminate(self.targets.alias(sid),status,turn))
                 self.live_reader.set_targets(self.targets.ipc_targets())
                 while not self.live_events.empty():
                     phase,sid,value,turn=self.live_events.get_nowait();target=self.targets.alias(sid)
@@ -113,7 +135,7 @@ class ActivityThread(QThread):
                         if phase=='terminal':
                             batch.extend(self.tail.reducer.terminate(target,value,turn));continue
                         if phase=='activity':
-                            batch.append(dict(kind='animation_lifecycle',session=target,turn=turn,active=value));continue
+                            batch.extend(self.tail.reducer.runtime_events(target,value,turn));continue
                         apply=self.tail.reducer.set_waiting if phase=='waiting' else self.tail.reducer.set_compacting
                         batch.extend(apply(target,value,turn))
                 if time.monotonic()-self.last_name_scan>=3:
@@ -169,15 +191,25 @@ class ActivityThread(QThread):
     def read_tokens(self):
         run,_=self.token_runs.reserve()
         self.event.emit({'kind':'token_busy','busy':True,'run_id':run})
-        terminal=None;health=None
+        terminal=None;health=None;snapshot=None
         try:
             if self.wsl:
                 from wsl_codex import running,unc_parts
                 if not running(unc_parts(self.tail.home)[0]):raise RuntimeError('WSL source unavailable')
+            prepare=getattr(self.token_index,'prepare',None)
+            if prepare:
+                maintenance=prepare(self.stop.is_set)
+                self.event.emit(dict(kind='database_maintenance',value=maintenance))
+                if self.stop.is_set():return
+                if maintenance.get('pending'):
+                    self.last_token_scan=min(self.last_token_scan,time.monotonic()-29)
+                    health=dict(kind='connection_health',capabilities={'tokens':dict(state='degraded',code='index_maintenance')})
+                    return
             with self.context_lock:cycle=self.week_cycle
             options=dict(stop=self.stop.is_set)
             if cycle:options['cycle']=cycle
             snapshot=self.token_index.poll(**options)
+            self.today_total.reconcile(snapshot);snapshot['_live_today']=self.today_total.snapshot()
             if (snapshot.get('quota_history') or {}).get('pending'):
                 # Bound each import slice and allow the UI/status worker to run.
                 # Continue in five seconds without adding a GUI timer or scanner.
@@ -199,6 +231,27 @@ class ActivityThread(QThread):
                 if terminal:self.event.emit(terminal)
                 if health:self.event.emit(health)
                 self.event.emit({'kind':'token_busy','busy':False,'run_id':run})
+        if snapshot and (snapshot.get('rates') or {}).get('pending'):
+            # Share the background index worker. Yield frequently and publish at most once/second.
+            deadline=time.monotonic()+3;last_publish=0
+            try:
+                while not self.stop.is_set() and not self.token_wake.is_set() and time.monotonic()<deadline:
+                    rates=self.token_index.rate_step(self.stop.is_set)
+                    if not rates['pending'] or time.monotonic()-last_publish>=1:
+                        self.event.emit(dict(kind='token_rate',rates=rates));last_publish=time.monotonic()
+                    if not rates['pending']:break
+                    self.stop.wait(.02)
+            except Exception:pass  # The next regular poll retries; never discard usage totals.
+        if snapshot and (snapshot.get('projects') or {}).get('pending'):
+            from project_cost_drain import drain
+            try:
+                drain(lambda:self.token_index.project_step(self.stop.is_set),
+                      lambda progress:self.event.emit(dict(kind='project_cost',projects=self.token_index.project_snapshot(progress))),
+                      self.stop.is_set,self.stop.wait,
+                      lambda:self.token_wake.is_set() or time.monotonic()-self.last_token_scan>=30)
+            except Exception:
+                # Retain the last complete snapshot; the regular poll retries.
+                pass
     def request_tokens(self):
         if self.stop.is_set():return None
         run,new=self.token_runs.reserve()
@@ -261,7 +314,7 @@ class EnhancedPet(Pet):
         from codex_connection import session_state_dir
         self.session_dir=session_state_dir(STATE_DIR)
         self.bubble.status_indicator.set_store(self.session_dir/'task-notifications.json')
-        self.bubble.quotaRefreshRequested.connect(self.refresh_quota)
+        self.bubble.quotaRefreshRequested.connect(lambda:self.refresh_quota(manual=True))
         self.bubble.resetRefreshRequested.connect(self.refresh_reset_feed)
         self.bubble.tokenRefreshRequested.connect(self.refresh_tokens)
         self.bubble.refreshAllRequested.connect(self.refresh_all)
@@ -326,7 +379,12 @@ class EnhancedPet(Pet):
         self.diagnostic_timer.setInterval(10000)
         self.diagnostic_timer.timeout.connect(self.record_state)
         self.diagnostic_timer.start()
-        self.tray=QSystemTrayIcon(self._tray_base_icon,self)
+        if monitor and sys.platform=='win32' and getattr(sys,'frozen',False) and os.environ.get('BAILONG_ISOLATED')!='1':
+            from stable_tray import StableTray
+            self.tray=StableTray(self._tray_base_icon,self)
+            self.tray.changed.connect(lambda:QTimer.singleShot(0,self.record_state))
+            self.tray.changed.connect(lambda:self._maintain_tray_history() if self.tray.ready else None)
+        else:self.tray=QSystemTrayIcon(self._tray_base_icon,self)
         self.tray.setToolTip('')
         tray_menu=QMenu()
         tray_menu.addAction('显示 / 隐藏气泡',self.toggle_bubble)
@@ -340,7 +398,7 @@ class EnhancedPet(Pet):
         self._tray_shell_enabled=monitor and os.environ.get('BAILONG_ISOLATED')!='1'
         if self._tray_shell_enabled:self.tray.show()
         self._refresh_tray_icon()
-        if self._tray_shell_enabled and sys.platform=='win32':QTimer.singleShot(3500,self._maintain_tray_history)
+        if self._tray_shell_enabled and sys.platform=='win32' and not hasattr(self.tray,'native_hover'):QTimer.singleShot(3500,self._maintain_tray_history)
         pos=self.settings.get('position')
         if isinstance(pos,list) and len(pos)==2:
             self.move(self.constrained_position(QPoint(int(pos[0]),int(pos[1]))))
@@ -468,7 +526,7 @@ class EnhancedPet(Pet):
         if self.enhanced_ready and self.sound and self._interaction_sound:
             super().play_click_sound()
 
-    def refresh_quota(self):
+    def refresh_quota(self,manual=False):
         if self.closing:return None
         run,_=self.quota_runs.reserve()
         if self.quota_inflight:return run
@@ -476,7 +534,7 @@ class EnhancedPet(Pet):
         self.quota_inflight=True
         self.bubble.set_quota_busy(True)
         try:
-            self.worker=QuotaWorker(self)
+            self.worker=QuotaWorker(self,manual=manual)
             self.worker.ready.connect(self.quota_ready)
             self.worker.failed.connect(self.quota_failed)
             self.worker.finished.connect(self.worker.deleteLater)
@@ -498,7 +556,7 @@ class EnhancedPet(Pet):
         self.bubble.show_quota=True
         self.bubble.enabled=True
         self.say('正在读取 Codex 剩余额度…',3000)
-        self.refresh_quota()
+        self.refresh_quota(manual=True)
 
     def quota_ready(self,windows):
         run=self.quota_runs.active
@@ -517,10 +575,12 @@ class EnhancedPet(Pet):
         self.quota_inflight=False
         self.bubble.set_quota_busy(False)
         self.worker=None
+        from cli_launch_health import STARTUP_ERRORS
+        startup=getattr(error,'code',None) in STARTUP_ERRORS
         if self.quota_windows:
-            self.render_quota('接口暂不可用 · 下方为上次记录')
+            self.render_quota('Codex启动失败，点击刷新重试' if startup else '接口暂不可用，下方为上次记录')
         else:
-            self.bubble.quota_caption='额度暂不可用 · 双击可重试'
+            self.bubble.quota_caption='Codex启动失败，点击刷新重试' if startup else '额度暂不可用，双击可重试'
             self.bubble.redraw()
             self.position_bubble()
             self._refresh_tray_icon()
@@ -584,19 +644,21 @@ class EnhancedPet(Pet):
     def _tray_quota_icon(self,window,value,valid):
         """Draw the circular, number-free quota ring used by the tray preview."""
         from ui_theme import TRAY_FIVE, TRAY_LOW, TRAY_WEEK, TRAY_TRACK, ISLAND
+        from theme_registry import tray_palette
+        colors=tray_palette()
         pixmap=QPixmap(64,64);pixmap.fill(Qt.GlobalColor.transparent)
         painter=QPainter(pixmap);painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         ring_width=10
-        background=QColor(ISLAND);background.setAlpha(235)
-        painter.setPen(Qt.PenStyle.NoPen);painter.setBrush(background)
+        background=QColor(colors['surface']);background.setAlpha(235)
+        painter.setPen(Qt.PenStyle.NoPen);painter.setBrush(theme_color(background))
         painter.drawEllipse(QRectF(1,1,62,62))
-        painter.setPen(QPen(QColor(TRAY_TRACK),ring_width,Qt.PenStyle.SolidLine,Qt.PenCapStyle.RoundCap))
+        painter.setPen(QPen(QColor(colors['track']),ring_width,Qt.PenStyle.SolidLine,Qt.PenCapStyle.RoundCap))
         arc=QRectF(7,7,50,50);painter.drawEllipse(arc)
         if valid:
             name=str(window.get('name') or '')
-            if value<=15:color=QColor(TRAY_LOW)
-            elif name=='一周':color=QColor(TRAY_WEEK)
-            else:color=QColor(TRAY_FIVE)
+            if value<=15:color=QColor(colors['low'])
+            elif name=='一周':color=QColor(colors['week'])
+            else:color=QColor(colors['five'])
             painter.setPen(QPen(color,ring_width,Qt.PenStyle.SolidLine,Qt.PenCapStyle.RoundCap))
             remaining=max(0,min(100,value))
             if remaining>0:painter.drawArc(arc,90*16,-round(360*16*remaining/100))
@@ -622,6 +684,9 @@ class EnhancedPet(Pet):
     def _maintain_tray_history(self):
         def maintain():
             try:
+                if hasattr(self.tray,'native_hover'):
+                    from tray_history import reconcile_fixed
+                    reconcile_fixed(STATE_DIR,self.tray.host);return
                 from tray_history import reconcile
                 reconcile(STATE_DIR)
             except (OSError,ValueError,KeyError,TypeError) as error:
@@ -637,13 +702,35 @@ class EnhancedPet(Pet):
             active=self.activity.token_runs.active if self.activity else None
             if event['busy'] or active is None or active==event.get('run_id'):
                 self.bubble.set_token_busy(event['busy'])
+        elif kind=='database_maintenance':
+            self.database_maintenance=event['value']
+        elif kind=='live_today_tokens':self.bubble.set_live_today(event['value'])
+        elif kind=='live_output_rate':
+            self.bubble.live_output_rate=event['value']
+            card=getattr(self.bubble,'live_rate_card',None)
+            if card is not None:
+                from shiboken6 import isValid
+                if isValid(card):card.set_data(event['value'])
         elif kind=='token_usage':
             snapshot=event['snapshot']
+            self.bubble.set_live_today(snapshot.get('_live_today'),refresh=False)
             if snapshot.get('unavailable') and self.bubble.token_snapshot:
                 snapshot=dict(self.bubble.token_snapshot,partial=True,refresh_failed=True)
             self.bubble.token_snapshot=snapshot;self.bubble.redraw();self.position_bubble()
             if self.bubble.report:self.bubble.report.set_snapshot(self.bubble.token_snapshot)
             self.refresh_flow.result('token',event.get('run_id'),not any(event['snapshot'].get(key) for key in ('unavailable','partial')))
+        elif kind=='token_rate':
+            if self.bubble.token_snapshot:
+                previous=self.bubble.token_snapshot
+                self.bubble.token_snapshot=dict(previous,rates=event['rates'],report=dict(previous.get('report') or {},rates=event['rates']))
+                from token_charts import TokenPlot
+                for plot in self.bubble.findChildren(TokenPlot):
+                    plot.set_data(self.bubble.token_snapshot,plot.period)
+                if self.bubble.report:self.bubble.report.set_snapshot(self.bubble.token_snapshot)
+        elif kind=='project_cost':
+            if self.bubble.token_snapshot:
+                self.bubble.token_snapshot=dict(self.bubble.token_snapshot,projects=event['projects'])
+                if self.bubble.report:self.bubble.report.set_snapshot(self.bubble.token_snapshot)
         elif kind=='token_usage_error':
             if self.bubble.token_snapshot:self.bubble.token_snapshot=dict(self.bubble.token_snapshot,partial=True,refresh_failed=True)
             else:self.bubble.token_snapshot=dict(month=time.strftime('%Y-%m'),days={},total=0,partial=True,unavailable=True)
@@ -749,7 +836,7 @@ class EnhancedPet(Pet):
     def refresh_all(self):
         if self.closing or self.refresh_flow.active('bubble'):return
         self.bubble.set_refresh_busy(True)
-        sources=dict(quota=self.refresh_quota(),token=self.refresh_tokens(),reset=self.refresh_reset_feed())
+        sources=dict(quota=self.refresh_quota(manual=True),token=self.refresh_tokens(),reset=self.refresh_reset_feed())
         self._requested_refresh_sources=set(sources)
         self.refresh_flow.begin('bubble',sources)
         if self.refresh_flow.batches:self.refresh_timeout.start()
@@ -785,6 +872,8 @@ class EnhancedPet(Pet):
         if sys.platform=='win32':
             # Qt's showMessage has no silent option. Never fall back to an audible alert.
             try:
+                if getattr(type(self.tray),'silentMessage',None):
+                    self.tray.silentMessage(title,clean_text(text,120));return
                 from silent_notify import SilentNotifier
                 if not self.silent_notifier:self.silent_notifier=SilentNotifier()
                 self.silent_notifier.show(title,clean_text(text,120))
@@ -869,8 +958,11 @@ class EnhancedPet(Pet):
                'ring_shape':'mini_circle' if self.bubble.is_island() else 'none',
                'ring_sweep':360 if self.bubble.is_island() else 0,'ring_tilt':0,
                'token_month_total':(self.bubble.token_snapshot or {}).get('total')}
+        live=getattr(self.bubble,'live_rate_card',None)
+        if live is not None and hasattr(live,'hover_diagnostics'):value['realtime_hover']=live.hover_diagnostics()
+        value['database_maintenance']=getattr(self,'database_maintenance',None)
         value['hover_hints']=dict(header_custom=True,tray_custom=True,
-            tray_hook_ready=bool(self.tray_hover.hook.hwnd),tray_hook_error=self.tray_hover.hook.error,
+            tray_hook_ready=bool(getattr(self.tray,'ready',False) or self.tray_hover.hook.hwnd),tray_hook_error=getattr(self.tray,'error','') or self.tray_hover.hook.error,
             tray_watch_active=self.tray_hover.watch.isActive(),tray_native_text_empty=not bool(self.tray.toolTip()))
         return value
     def record_state(self):
@@ -900,6 +992,11 @@ class EnhancedPet(Pet):
 def main():
     if sys.platform=='darwin' and any(arg in sys.argv for arg in ('--apply-program-update','--manage','--smoke-video-probe','--card-surface-probe','--interaction-probe','--chat-probe')):
         print('此功能仅适用于 Windows 安装版。',file=sys.__stderr__);return 2
+    from process_launch import configure_frozen_qt
+    configure_frozen_qt()
+    if '--cost-extension-probe' in sys.argv:
+        from cost_extension_probe import run
+        return run(sys.argv[sys.argv.index('--cost-extension-probe')+1])
     if '--chat-probe' in sys.argv:
         from chat_probe import run
         return run(sys.argv[sys.argv.index('--chat-probe')+1])
@@ -922,6 +1019,10 @@ def main():
     if '--apply-program-update' in sys.argv:
         from program_update_apply import main as apply_program
         return apply_program()
+    if '--startup-probe' in sys.argv:
+        from startup_probe import run
+        previous=sys.argv[sys.argv.index('--previous-runtime')+1] if '--previous-runtime' in sys.argv else None
+        return run(sys.argv[sys.argv.index('--startup-probe')+1],previous,'--startup-probe-child' in sys.argv)
     if '--material-probe' in sys.argv:
         from material_probe import run
         return run(sys.argv[sys.argv.index('--material-probe')+1])
@@ -933,7 +1034,15 @@ def main():
         return run(sys.argv[sys.argv.index('--sustained-probe')+1])
     if '--interaction-probe' in sys.argv:
         from interaction_probe import run
-        return run(sys.argv[sys.argv.index('--interaction-probe')+1])
+        output=Path(sys.argv[sys.argv.index('--interaction-probe')+1])
+        try:return run(str(output))
+        except Exception as error:
+            # A failed unattended check must fail the build promptly, rather
+            # than leave PyInstaller's modal error dialog waiting for a user.
+            import traceback
+            from desktop_core import atomic_json
+            atomic_json(output,dict(passed=False,error=type(error).__name__,message=str(error),traceback=traceback.format_exc()))
+            return 1
     if '--smoke-video-probe' in sys.argv:
         from video_yield import smoke_probe
         return smoke_probe(sys.argv[sys.argv.index('--smoke-video-probe')+1])

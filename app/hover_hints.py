@@ -1,8 +1,10 @@
 """Small non-activating bubbles shared by header actions and the quota tray."""
+from settings_controls import play_animation
+from theme_registry import color as theme_color
 import weakref,sys
 from PySide6.QtCore import Qt,QObject,QEvent,QPoint,QRect,QRectF,QTimer,QVariantAnimation,QEasingCurve
 from PySide6.QtGui import QColor,QCursor,QFontMetrics,QPainter,QPainterPath,QPen
-from PySide6.QtWidgets import QWidget,QToolTip
+from PySide6.QtWidgets import QWidget,QToolTip,QApplication
 from typography import ui_font
 from ui_theme import SURFACE,INK,MUTED,BORDER
 from settings_controls import motion_enabled
@@ -25,10 +27,9 @@ class HintBubble(QWidget):
         self.animation=QVariantAnimation(self);self.animation.valueChanged.connect(self._advance)
         self.animation.finished.connect(self._finished);self.hide()
 
-    def present(self,title,subtitle,anchor,screen,*,card_top=None,topmost=True,owner=None):
+    def present(self,title,subtitle,anchor,screen,*,card_top=None,topmost=True,owner=None,geometry=None,initial_level=0.):
         self.animation.stop();self.title=str(title);self.subtitle=str(subtitle)
-        metrics=QFontMetrics(self.font());width=max(metrics.horizontalAdvance(self.title),metrics.horizontalAdvance(self.subtitle))+22
-        width=max(42,min(260,width));height=50 if self.subtitle else 32
+        width,height=self.hint_size()
         if bool(self.windowFlags()&Qt.WindowType.WindowStaysOnTopHint)!=bool(topmost):
             self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint,bool(topmost))
         # A report is an owned native Tool window above the main card. Merely
@@ -44,22 +45,41 @@ class HintBubble(QWidget):
         if self.below:top=anchor.bottom()+2
         top=max(area.top()+2,min(top,area.bottom()-height-1))
         self.tip_x=max(12.,min(float(width-12),float(cx-left)))
-        self.setGeometry(left,top,width,height);self.setAccessibleName(self.title)
+        if geometry is None:self.setGeometry(left,top,width,height)
+        else:self.setGeometry(geometry)
+        self.setAccessibleName(self.title)
         self.setAccessibleDescription(self.subtitle)
-        if not self.isVisible():self.level=0.;self.show()
+        if not self.isVisible():
+            self.level=initial_level
+            # Clear a cold/reused layered HWND before exposing it. This keeps
+            # the normal alpha entrance without a native blank/stale rectangle.
+            self.native_seeded=False
+            if QApplication.platformName()=='windows':
+                from native_landing import publish
+                try:self.native_seeded=publish(self,None)
+                except OSError:self.native_seeded=False
+            self.show()
         self.raise_()
         self._animate(1.)
         # An already opaque surface has no alpha delta to drive paintEvent.
         # Moving a layered window alone can retain its old pixels.
         self.update()
 
+    def hint_size(self):
+        metrics=QFontMetrics(self.font());width=max(metrics.horizontalAdvance(self.title),metrics.horizontalAdvance(self.subtitle))+22
+        return max(42,min(260,width)),50 if self.subtitle else 32
+
     def _animate(self,target):
         self.animation.stop()
         if not motion_enabled():
             self.level=target;self.update();self._finished();return
-        self.animation.setDuration(160 if target else 120)
-        self.animation.setEasingCurve(QEasingCurve.Type.OutCubic if target else QEasingCurve.Type.InCubic)
-        self.animation.setStartValue(self.level);self.animation.setEndValue(target);self.animation.start()
+        start=self.level;blocked=self.animation.blockSignals(True)
+        try:
+            self.animation.setDuration(160 if target else 120)
+            self.animation.setEasingCurve(QEasingCurve.Type.OutCubic if target else QEasingCurve.Type.InCubic)
+            self.animation.setStartValue(start);self.animation.setEndValue(target);self.animation.setCurrentTime(0)
+        finally:self.animation.blockSignals(blocked)
+        self.level=start;play_animation(self.animation)
 
     def dismiss(self,immediate=False):
         if immediate:
@@ -78,11 +98,11 @@ class HintBubble(QWidget):
         arrow=QPainterPath();edge=body.top() if self.below else body.bottom()
         arrow.moveTo(self.tip_x-4,edge);arrow.lineTo(self.tip_x,edge-4 if self.below else edge+4)
         arrow.lineTo(self.tip_x+4,edge);arrow.closeSubpath();shape=shape.united(arrow)
-        p.setPen(QPen(QColor(BORDER),1));p.setBrush(QColor(SURFACE));p.drawPath(shape)
-        p.setFont(self.font());p.setPen(QColor(INK))
+        p.setPen(QPen(QColor(theme_color(BORDER)),1));p.setBrush(QColor(theme_color(SURFACE)));p.drawPath(shape)
+        p.setFont(self.font());p.setPen(QColor(theme_color(INK)))
         if self.subtitle:
             p.drawText(body.adjusted(10,5,-10,-body.height()+23),Qt.AlignmentFlag.AlignVCenter,self.title)
-            p.setPen(QColor(MUTED));p.drawText(body.adjusted(10,22,-10,-4),Qt.AlignmentFlag.AlignVCenter,self.subtitle)
+            p.setPen(QColor(theme_color(MUTED)));p.drawText(body.adjusted(10,22,-10,-4),Qt.AlignmentFlag.AlignVCenter,self.subtitle)
         else:p.drawText(body,Qt.AlignmentFlag.AlignCenter,self.title)
         p.end()
 
@@ -119,7 +139,8 @@ class HeaderHints(QObject):
     def _restore_header(self):
         if not self.rebuilding:return
         self.rebuilding=False;role=self.role;self.role=None
-        for button in getattr(self.parent(),'_header_actions',[]):
+        for button in self.parent().findChildren(QWidget):
+            if not button.property('headerActionHint'):continue
             if button.objectName()==role and button.isVisible() and QRect(button.mapToGlobal(QPoint()),button.size()).contains(QCursor.pos()):
                 self.target=weakref.ref(button);self._show();return
         self.dismiss(True)
@@ -133,13 +154,21 @@ class HeaderHints(QObject):
         point=button.mapToGlobal(QPoint());anchor=QRect(point,button.size())
         report=getattr(b,'report',None)
         owner=report if report is not None and report.isVisible() else b
-        self.popup.present(text,'',anchor,button.screen(),card_top=b.mapToGlobal(QPoint()).y(),
+        top=anchor.top() if button.objectName().startswith('theme_dot_') else b.mapToGlobal(QPoint()).y()
+        self.popup.present(text,'',anchor,button.screen(),card_top=top,
                            topmost=bool(b.windowFlags()&Qt.WindowType.WindowStaysOnTopHint),owner=owner)
         self.watch.start()
 
     def eventFilter(self,obj,event):
-        if not isinstance(obj,QWidget):return False
-        b=self.parent();kind=event.type()
+        # Style/palette/paint storms are irrelevant to hover lifetime. Do not
+        # traverse widget ancestry while Qt is polishing or tearing down forms.
+        kind=event.type()
+        if kind not in (QEvent.Type.Hide,QEvent.Type.Close,QEvent.Type.Move,QEvent.Type.Resize,QEvent.Type.ToolTip,QEvent.Type.Enter,QEvent.Type.Leave,QEvent.Type.MouseButtonPress,QEvent.Type.ParentChange):return False
+        from shiboken6 import isValid
+        if not isinstance(obj,QWidget) or not isValid(obj):return False
+        b=self.parent()
+        if b is None or not isValid(b):return False
+        if obj is not b and not b.isVisible():return False
         if obj is b and (kind in (QEvent.Type.Hide,QEvent.Type.Close) or (kind in (QEvent.Type.Move,QEvent.Type.Resize) and not self.rebuilding)):self.dismiss(True)
         if obj is not b and not b.isAncestorOf(obj):return False
         if kind==QEvent.Type.ToolTip:
@@ -207,11 +236,13 @@ class TrayHints(QObject):
         self.watch=QTimer(self);self.watch.setInterval(100);self.watch.timeout.connect(self._check)
         if sys.platform!='darwin':tray.installEventFilter(self)
         tray.activated.connect(lambda *_:self.dismiss())
+        if hasattr(tray,'native_hover'):tray.native_hover.connect(self.enter)
         if tray.contextMenu():tray.contextMenu().aboutToShow.connect(self.dismiss)
         parent.destroyed.connect(self.popup.deleteLater)
 
     def ensure_hook(self):
         import sys
+        if hasattr(self.tray,'native_hover'):return  # the fixed host forwards its own Shell messages
         if sys.platform!='win32' or not self.tray.isVisible():return
         if not self.hook.hwnd:
             from silent_notify import qt_tray_window

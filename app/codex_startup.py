@@ -60,7 +60,8 @@ def spawn(command):
         # Own session: survives the launching terminal or launchd job, like a detached Windows process.
         if getattr(sys,'frozen',False):env['PYINSTALLER_RESET_ENVIRONMENT']='1'
         return subprocess.Popen(command,close_fds=True,env=env,start_new_session=True,stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
-    return subprocess.Popen(command,creationflags=0x08000000,close_fds=True,env=env)
+    from process_launch import launch_own
+    return launch_own(command,independent=True,remove_environment=('BAILONG_DEPLOY_TOKEN','BAILONG_DEPLOY_RECEIPT'),creationflags=0x08000000,close_fds=True,env=env)
 
 def stop_watchers(root=None):
     root=Path(root or install_root()).resolve();manifest=read_json(root/'installations.json')
@@ -167,29 +168,43 @@ def main():
     path=data_dir()/'codex-watch-state.json';replacement=None
     try:
         while enabled():
-            # Install/rollback owns its launch transaction; do not race it.
-            if not (install_root()/'deployment-journal.json').exists():
-                command=current_command()
-                if command is None:break
-                if MACOS:
-                    # The login agent names the copy that last enabled this; hand off when the pet moved.
-                    from platform_paths import launch_agent_args
-                    agent=launch_agent_args(startup_path()) or []
-                    target=agent[:-1] if agent[-1:]==[WATCH_FLAG] else None
-                    if target and Path(target[0]).is_file() and [os.path.realpath(a) for a in target]!=[os.path.realpath(a) for a in command]:
-                        replacement=target;break
-                if getattr(sys,'frozen',False) and Path(command[0]).resolve()!=Path(sys.executable).resolve():
-                    replacement=command;break
-                sessions=desktop_sessions()
-                if gate.observe(sessions):
-                    try:
-                        spawn(command+['--from-codex'])
-                        state.update(launches=state['launches']+1,last_launch=time.time());state.pop('error',None)
-                    except OSError as error:
-                        state['error']=str(error)[:180];gate.sessions=set()
-                previous=state.get('codex_open');state['codex_open']=None if sessions is None else bool(sessions)
-                if previous!=state['codex_open'] or 'written' not in state or state.get('last_launch',0)>state['written']:
-                    state['written']=time.time();atomic(path,state)
+            try:
+                # Install/rollback owns its launch transaction; do not race it.
+                state['paused_for_deployment']=(install_root()/'deployment-journal.json').exists()
+                if not state['paused_for_deployment']:
+                    command=current_command()
+                    if command is None:
+                        raise OSError('当前安装入口暂不可用，等待下次检查')
+                    if MACOS:
+                        # The login agent names the copy that last enabled this; hand off when the pet moved.
+                        from platform_paths import launch_agent_args
+                        agent=launch_agent_args(startup_path()) or []
+                        target=agent[:-1] if agent[-1:]==[WATCH_FLAG] else None
+                        if target and Path(target[0]).is_file() and [os.path.realpath(a) for a in target]!=[os.path.realpath(a) for a in command]:
+                            replacement=target;break
+                    if getattr(sys,'frozen',False) and Path(command[0]).resolve()!=Path(sys.executable).resolve():
+                        replacement=command;break
+                    sessions=desktop_sessions()
+                    if gate.observe(sessions):
+                        try:
+                            spawn(command+['--from-codex'])
+                            state.update(launches=state['launches']+1,last_launch=time.time())
+                        except OSError:
+                            gate.sessions=set()
+                            raise
+                    state['codex_open']=None if sessions is None else bool(sessions)
+                state.pop('error',None)
+            except (OSError,ValueError,psutil.Error) as error:
+                # A temporary process/entry read failure must not kill the
+                # independent listener needed for the next Codex launch.
+                state['error']=str(error)[:180]
+            now=time.time()
+            signature=(state.get('codex_open'),state.get('paused_for_deployment'),state.get('error'),state['launches'])
+            if signature!=state.get('_signature') or now-state.get('written',0)>=30:
+                state['_signature']=signature;state['written']=now
+                try:atomic(path,{k:v for k,v in state.items() if k!='_signature'})
+                except OSError:
+                    state.pop('_signature',None) # retry diagnostics next poll
             time.sleep(POLL_SECONDS)
     finally:release()
     if replacement and enabled():spawn(replacement+[WATCH_FLAG])
@@ -199,7 +214,9 @@ def main():
 class ExitGate:
     """Only close after this run actually observed Codex, never on unknown data."""
     def __init__(self):self.reset()
-    def reset(self):self.seen=False;self.absent=0
+    def reset(self):
+        self.generation=getattr(self,'generation',-1)+1
+        self.seen=False;self.absent=0
     def observe(self,current):
         if current is None:self.absent=0;return False
         if current:self.seen=True;self.absent=0;return False
