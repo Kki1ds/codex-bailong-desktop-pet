@@ -48,7 +48,7 @@ pip 若配置了不含这些版本的镜像，可加 `-i https://pypi.org/simple
 
 第二条生成 `build/materials/light`，内容 ID 与 material_catalog.json 一致。它会以 LF 重写 `app/material_catalog.json`，内容不变，`git checkout app/material_catalog.json` 即可还原换行。
 
-测试与 Windows 相同：`PYTHONPATH=app QT_QPA_PLATFORM=offscreen` 后运行 unittest。Windows 专属的安装、注册表和 DPAPI 测试在 macOS 上跳过；macOS 专属测试（test_macos_codex、test_live_unix、test_mac_platform_services、test_mac_full_screen）在其他系统上跳过。闲聊密钥的测试不会读写真实钥匙串。GitHub Actions 的 macOS 任务（macos-14，arm64）运行这四组测试，并构建一次仅卡片 .app 与 .dmg，做 `codesign --verify` 和 SHA-256 校验，不下载人物素材。
+测试与 Windows 相同：`PYTHONPATH=app QT_QPA_PLATFORM=offscreen` 后运行 unittest。Windows 专属的安装、注册表和 DPAPI 测试在 macOS 上跳过；macOS 专属测试（test_macos_codex、test_live_unix、test_mac_platform_services、test_mac_full_screen）在其他系统上跳过。闲聊密钥的测试不会读写真实钥匙串。GitHub Actions 的 macOS 任务（macos-15，arm64）运行这四组测试，并构建一次仅卡片 .app 与 .dmg，做 `codesign --verify` 和 SHA-256 校验，不下载人物素材。
 
 ## 构建 .app
 

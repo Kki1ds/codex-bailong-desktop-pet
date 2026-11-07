@@ -2,6 +2,8 @@
 
 分支 codex/macos-1.6.0，同步上游 214d1534。交付终点为 fork main 的 PR，用户安排独立审核；不合并、不实装、不发布。当前公开入口继续保留 1.2.1-mac.1。维护与验证见 docs/MACOS_MAINTAINER.md 和 docs/releases/v1.6.0-mac.1.md。
 
+远端 CI 的 macos-14 标签在任务启动前返回 unsupported（无执行步骤），已迁移 macos-15 Apple Silicon runner；不将该基础设施失败算作测试失败。
+
 本轮确认的新故障：自动价表/计价偏好绕开 Mac 数据目录；旧库整理拒绝 /var 系统别名，令索引线程提前退出。前者改用 platform_paths，后者复用既有严格路径规则。回归覆盖默认/隔离目录、系统别名和用户链接拒绝。上游 motion_enabled 已改为无缓存入口，Mac 系统策略测试改清 _system_motion_enabled 缓存，并避开 CI 的强制动效夹具。Windows ABI 测试保留在原平台执行。
 
 # macOS 1.2.1 交接（2026-10-30）
