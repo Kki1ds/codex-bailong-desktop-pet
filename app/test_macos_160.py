@@ -37,6 +37,13 @@ class Mac160Tests(unittest.TestCase):
             expected=Path.home()/'Library/Application Support/BailongEnhanced'
             self.assertEqual(cost_preferences.path().parent,expected)
             self.assertEqual(official_api_prices.cache_path().parent,expected)
+    def test_cli_startup_health_uses_application_support(self):
+        import cli_launch_health
+        with patch.dict(os.environ,{},clear=True):
+            self.assertEqual(cli_launch_health.state_path(),Path.home()/'Library/Application Support/BailongEnhanced/quota-cli-startup.json')
+        with tempfile.TemporaryDirectory() as root,patch.dict(os.environ,LOCALAPPDATA=root):
+            self.assertEqual(cli_launch_health.state_path(),Path(root)/'BailongEnhanced/quota-cli-startup.json')
+        self.assertIsNone(cli_launch_health.state_path(False))
 
     def test_database_maintenance_keeps_user_symlink_protection(self):
         from index_maintenance import plain

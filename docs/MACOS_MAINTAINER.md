@@ -6,8 +6,9 @@
 
 - 开发分支 `codex/macos-1.6.0` 同步上游 v1.6.0（18a9ba43）及发布后首页提交 214d1534；候选版本 1.6.0-mac.1。公开安装入口仍为 1.2.1-mac.1。
 - 新增前台窗口几何读取用于窗口避让：AppKit 前台 PID、Quartz 普通可见窗口边界，仅取所在屏幕交集；不查询标题或截图。Retina 坐标保持全局逻辑点，不再除以 DPR。
-- 新版 API 价表和计价设置必须通过 platform_paths.data_dir；旧库整理在 Mac 复用 storage_locations.plain，仅规范化系统别名，继续拒绝用户链接。
+- 新版 API 价表、计价设置和额度 CLI 启动失败记录必须通过 platform_paths.data_dir；上游新文件若写 `LOCALAPPDATA` 回退主目录，Mac 会在 `~` 下建 BailongEnhanced，合并后需 grep 检查。所有自动测试都设置了 LOCALAPPDATA，回归须清空环境变量断言 Application Support。
 - 上游自 v1.6.0 起以 CRLF 提交，fork 原为 LF。合并后共享文件按上游换行统一（与上游仅换行不同的文件直接取上游字节），否则会混排且 PR 差异被换行淹没；Mac 独有文件保持 LF。检查：`git diff --stat 214d153 HEAD` 应与加 `--ignore-cr-at-eol` 时接近。
+- 旧库整理在 Mac 复用 storage_locations.plain，仅规范化系统别名，继续拒绝用户链接。
 - 新速率/服务状态浮窗继承 HintBubble，已共用 mac_native.overlay；活动区编辑器在卡片内部，无需另建原生窗口。
 - Mac 检查入口：`.venv/bin/python tools/check_source.py --macos`。Windows 安装事务、历史安装清理及 PE 裁剪留在 Windows job；减少动态效果测试不使用强制启用动效的夹具。
 - 验证及人工审核清单见 [候选验证记录](releases/v1.6.0-mac.1.md)。本轮提交 PR 审核，不替换当前安装，不发布 Release。
