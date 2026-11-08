@@ -55,6 +55,12 @@
 - `desktop_services.py` 的分支顺序：先 macOS，再 WSL，最后 Windows；`update_controller.py` 的 macOS UNSUPPORTED 守卫（应用内更新在 macOS 关闭）。
 - 应用标识 `BUNDLE_ID = io.github.wunsch2048.bailong-enhanced`（在 `platform_paths.py`），不要改，否则登录项、钥匙串授权和数据目录都会受影响。
 
+## 已报给上游、fork 暂自行修复的共用代码
+
+同步上游时逐条查看上游是否已修：已修则改用上游实现并删除 fork 改动，保留回归测试作为验证；未修则保留 fork 改动。
+
+- [上游 #25](https://github.com/Wunsch2048/codex-bailong-desktop-pet/issues/25)（2026-11-08 提交）：Codex 在 `task_complete` 后为同一 turn 补写后台命令的 `item_completed`，会话被重新判为执行中，状态长期忙碌、自主走动停止。fork 修复见 `b99f6a6`：`enhanced_core.py` 的 `Session.completed_turn` 及 `item_completed` 分支的同 turn 忽略；回归测试为 `test_enhanced_core` 中两项 `late_tool_completion` / `tail_seeded_completion` 用例，已加入 `check_source.py --macos`。
+
 ## 给用户的命令规则
 
 - 在 Mac 上给用户的命令用 `python`，绝不用 `python3`：`python` 是 Homebrew Python 3.12，系统 `python3` 是 3.9 且 pip 证书损坏。
