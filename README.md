@@ -8,9 +8,7 @@ Windows 当前公开版 **v1.6.0**。在线安装器直接获取最新累计程�
 
 ![白龙桌宠封面](docs/media/cover.png)
 
-**[下载 macOS 社区版 1.2.1-mac.1](https://github.com/Kki1ds/codex-bailong-desktop-pet/releases/tag/v1.2.1-mac.1)**
-
-> `main` 源码已同步上游 v1.6.0（候选 1.6.0-mac.1），尚未发布 macOS 安装包；上面的下载入口仍是 1.2.1-mac.1。从源码运行得到的是 1.6.0 候选代码，验收情况见 [候选验证记录](docs/releases/v1.6.0-mac.1.md)。
+**[下载 macOS 社区版 1.6.0-mac.1](https://github.com/Kki1ds/codex-bailong-desktop-pet/releases/tag/v1.6.0-mac.1)**
 
 ## macOS 社区版
 
@@ -18,8 +16,7 @@ macOS 社区版由 [Kki1ds](https://github.com/Kki1ds) 在本 fork 维护，不�
 
 | 项目 | macOS 社区版 |
 | --- | --- |
-| 安装包 | 1.2.1-mac.1，基于上游 v1.2.1（c725ede） |
-| `main` 源码 | 1.6.0-mac.1 候选，基于上游 v1.6.0（18a9ba43），未发布安装包 |
+| 当前版本 | 1.6.0-mac.1（预发布），基于上游 v1.6.0（18a9ba43） |
 | 测试环境 | Apple Silicon，macOS 27.2，内置屏与外接显示器，ChatGPT.app 内置 Codex CLI |
 | 不在范围内 | Intel Mac 未测试；不声明兼容所有 macOS 版本（最低设为 macOS 12） |
 
@@ -27,10 +24,10 @@ macOS 社区版由 [Kki1ds](https://github.com/Kki1ds) 在本 fork 维护，不�
 
 | 文件 | 用法 |
 | --- | --- |
-| `BailongEnhanced-1.2.1-mac.1-macos-arm64.dmg` | 双击打开，把 `BailongEnhanced.app` 拖到旁边的“Applications”文件夹 |
-| `BailongEnhanced-1.2.1-mac.1-macos-arm64.dmg.sha256` | 在下载目录运行 `shasum -a 256 -c BailongEnhanced-1.2.1-mac.1-macos-arm64.dmg.sha256` 校验 |
+| `BailongEnhanced-1.6.0-mac.1-macos-arm64.dmg` | 双击打开，把 `BailongEnhanced.app` 拖到旁边的“Applications”文件夹 |
+| `BailongEnhanced-1.6.0-mac.1-macos-arm64.dmg.sha256` | 在下载目录运行 `shasum -a 256 -c BailongEnhanced-1.6.0-mac.1-macos-arm64.dmg.sha256` 校验 |
 
-应用约 136 MB，自带 Python 与 Qt，无需安装其他软件，只需本机已安装 Codex 桌面端（ChatGPT.app）或 Codex CLI。安装包只含卡片，人物动画在 设置 → 角色与素材 中从上游 Release 下载，逐一校验后使用。
+应用约 137 MB，自带 Python 与 Qt，无需安装其他软件，只需本机已安装 Codex 桌面端（ChatGPT.app）或 Codex CLI。安装包只含卡片，人物动画在 设置 → 角色与素材 中从上游 Release 下载，逐一校验后使用。
 
 应用使用 ad-hoc 签名，未公证。首次打开时会提示无法验证开发者：在 Finder 中右键 .app 选择“打开”，或在 系统设置 → 隐私与安全性 中点“仍要打开”。
 
@@ -40,14 +37,15 @@ macOS 社区版由 [Kki1ds](https://github.com/Kki1ds) 在本 fork 维护，不�
 
 ### 已验证
 
-本次完成 Codex 本机连接、额度与统计、轻量动画播放、卡片和日报切换、钥匙串读写删除，以及 Chrome 原生全屏和视频全屏让位验收。新增可配置额度变化提醒、菜单栏额度环和动画目录迁移。全屏期间完成提醒保持未读，退出后恢复显示。测试与性能数据见 [1.2.1-mac.1 发布说明](docs/releases/v1.2.1-mac.1.md)，此前的登录启动、多桌面和外观验收单列为历史记录。
+1.6.0-mac.1 合入上游 1.3.0 至 1.6.0 的项目成本、自动价表、实时数字、主题、大卡片布局和四种走动方式，并修复任务完成后状态一直“忙碌”的问题。本机验收了 Chrome 原生全屏与视频全屏让位、多屏混合缩放、新提示浮窗与主题、真实 Codex 任务与提醒、登录启动与钥匙串、轻量动画和窗口模式走动。详情见 [1.6.0-mac.1 发布说明](https://github.com/Kki1ds/codex-bailong-desktop-pet/releases/tag/v1.6.0-mac.1) 和 [验证记录](docs/releases/v1.6.0-mac.1.md)；上一版 [1.2.1-mac.1](https://github.com/Kki1ds/codex-bailong-desktop-pet/releases/tag/v1.2.1-mac.1) 仍可下载。
 
 ### 已知限制
 
 - 没有应用内更新，不要在 macOS 上使用上游的 Windows 安装器或补丁包；新版请到本仓库 Releases 下载。
 - 不支持 WSL 连接来源（Windows 专属），设置中不显示该选项。
-- 全屏让位本次用 Chrome 原生全屏与视频全屏实测；未用真实模型服务测试闲聊发送。
-- 本次轻量动画设置页短采样约占单核 21.8% CPU，全屏隐藏后约 1.4%；详细条件见发布说明。
+- 全屏让位用 Chrome 原生全屏与视频全屏实测；未用真实模型服务测试闲聊发送。
+- 高清动画、Chrome 在前台时的窗口避让路线未在本版验收。
+- 本版未重新测量性能，不沿用 1.2.1-mac.1 的 CPU 与内存数据。
 - 其余限制见 [docs/MACOS.md](docs/MACOS.md#已知限制)。
 
 ### 维护范围
@@ -55,8 +53,6 @@ macOS 社区版由 [Kki1ds](https://github.com/Kki1ds) 在本 fork 维护，不�
 尽力维护，不承诺跟进每个上游版本：上游发布次版本或主版本（例如 1.1.0、2.0.0）时，同步代码、在 Mac 上实测并发布新的 macOS 包；补丁版本一般不单独跟进，影响使用的严重问题除外。macOS 相关问题请在 [本仓库 Issues](https://github.com/Kki1ds/codex-bailong-desktop-pet/issues) 反馈；Windows 版问题请到上游。
 
 ### 从源码运行
-
-`main` 当前为 1.6.0 候选代码，比 1.2.1-mac.1 安装包新，新增项目成本、自动价表、主题、实时数字、大卡片和四种走动模式。高清动画、Chrome 前台时的窗口避让路线和性能对照尚未在 Mac 上验收。
 
 ```bash
 brew install python@3.12

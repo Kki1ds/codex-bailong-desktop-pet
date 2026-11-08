@@ -2,9 +2,9 @@
 
 在不改变 Windows 行为的前提下，让桌宠在 Apple Silicon Mac 上运行。macOS 版是社区维护的移植，由 [Kki1ds](https://github.com/Kki1ds) 在 fork 中维护，不是上游官方版本。授权边界见 NOTICE.md，与 Windows 版相同。
 
-## main 源码（未发布）
+## 当前版本
 
-`main` 已于 2026-11-08 合入上游 v1.6.0 移植，候选版本为 1.6.0-mac.1，包含项目成本、自动价表、主题、实时数字、大卡片及四种走动模式。Mac 窗口避让通过系统提供的前台应用窗口边界规划路线。尚未发布 macOS 安装包，公开安装仍使用下面的 1.2.1-mac.1 入口。[候选验证与验收记录](releases/v1.6.0-mac.1.md)。
+[1.6.0-mac.1](https://github.com/Kki1ds/codex-bailong-desktop-pet/releases/tag/v1.6.0-mac.1)（2026-11-08 预发布）基于上游 v1.6.0，包含项目成本、自动价表、主题、实时数字、大卡片及四种走动模式。Mac 窗口避让通过系统提供的前台应用窗口边界规划路线，只读取窗口边界。[验证与验收记录](releases/v1.6.0-mac.1.md)。
 
 ## 下载与安装
 
@@ -95,7 +95,7 @@ pip 若配置了不含这些版本的镜像，可加 `-i https://pypi.org/simple
 
 ## 本次验收
 
-1.2.1-mac.1 基于上游 v1.2.1（c725ede）。本次测试、实装和性能记录见 [1.2.1-mac.1 发布说明](releases/v1.2.1-mac.1.md)。
+1.6.0-mac.1 基于上游 v1.6.0（18a9ba43）。本次测试与人工验收见 [1.6.0-mac.1 验证记录](releases/v1.6.0-mac.1.md)；本版未重新测量性能。上一版 1.2.1-mac.1 的测试与性能记录见 [1.2.1-mac.1 发布说明](releases/v1.2.1-mac.1.md)。
 
 ## 历史验收记录（1.0.1-mac.1）
 
