@@ -2,6 +2,10 @@
 
 在不改变 Windows 行为的前提下，让桌宠在 Apple Silicon Mac 上运行。macOS 版是社区维护的移植，由 [Kki1ds](https://github.com/Kki1ds) 在 fork 中维护，不是上游官方版本。授权边界见 NOTICE.md，与 Windows 版相同。
 
+## main 源码（未发布）
+
+`main` 已于 2026-11-08 合入上游 v1.6.0 移植，候选版本为 1.6.0-mac.1，包含项目成本、自动价表、主题、实时数字、大卡片及四种走动模式。Mac 窗口避让通过系统提供的前台应用窗口边界规划路线。尚未发布 macOS 安装包，公开安装仍使用下面的 1.2.1-mac.1 入口。[候选验证与验收记录](releases/v1.6.0-mac.1.md)。
+
 ## 下载与安装
 
 1. 在 [Releases](https://github.com/Kki1ds/codex-bailong-desktop-pet/releases) 下载 `BailongEnhanced-<版本>-macos-arm64.dmg`，只支持 Apple Silicon。可用同名 `.sha256` 文件校验：`shasum -a 256 -c <文件名>.sha256`。
@@ -44,7 +48,7 @@ pip 若配置了不含这些版本的镜像，可加 `-i https://pypi.org/simple
 
 第二条生成 `build/materials/light`，内容 ID 与 material_catalog.json 一致。它会以 LF 重写 `app/material_catalog.json`，内容不变，`git checkout app/material_catalog.json` 即可还原换行。
 
-测试与 Windows 相同：`PYTHONPATH=app QT_QPA_PLATFORM=offscreen` 后运行 unittest。Windows 专属的安装、注册表和 DPAPI 测试在 macOS 上跳过；macOS 专属测试（test_macos_codex、test_live_unix、test_mac_platform_services、test_mac_full_screen）在其他系统上跳过。闲聊密钥的测试不会读写真实钥匙串。GitHub Actions 的 macOS 任务（macos-14，arm64）运行这四组测试，并构建一次仅卡片 .app 与 .dmg，做 `codesign --verify` 和 SHA-256 校验，不下载人物素材。
+测试与 Windows 相同：`PYTHONPATH=app QT_QPA_PLATFORM=offscreen` 后运行 unittest。Windows 专属的安装、注册表和 DPAPI 测试在 macOS 上跳过；macOS 专属测试（test_macos_codex、test_live_unix、test_mac_platform_services、test_mac_full_screen）在其他系统上跳过。闲聊密钥的测试不会读写真实钥匙串。GitHub Actions 的 macOS 任务（macos-15，arm64）运行这四组测试，并构建一次仅卡片 .app 与 .dmg，做 `codesign --verify` 和 SHA-256 校验，不下载人物素材。
 
 ## 构建 .app
 

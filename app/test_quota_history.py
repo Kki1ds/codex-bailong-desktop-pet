@@ -10,6 +10,35 @@ from quota_history import WEEK,migrate,store,record_line,partition,summarize_cyc
 
 
 class QuotaHistoryTests(unittest.TestCase):
+    def test_pro_doubling_preserves_cycle_and_normalizes_old_denominator(self):
+        s=self.start;deadline=s+WEEK
+        samples=[(s+t,deadline,r,'live','prolite',None,'') for t,r in [(1,100),(100,13),(200,56),(300,56),(400,50)]]
+        original=list(samples);periods=partition(samples)
+        self.assertEqual(len(periods),1);self.assertEqual(samples,original)
+        self.assertEqual(periods[0]['capacity_factor'],2)
+        self.assertEqual(periods[0]['samples'][1][2],56.5)
+        for row in samples:store(self.db,*row)
+        self.token(s+50,8700);self.token(s+350,1300)
+        row=summarize_cycles(self.db,s+401)[0]
+        self.assertEqual(row['used'],10000);self.assertEqual(row['estimated_total'],20000)
+        self.assertEqual(row['drop'],50);self.assertTrue(row['eligible'])
+        self.assertEqual(row,summarize_cycles(self.db,s+401)[0])
+    def test_doubling_ignores_stale_reset_boundary_but_needs_confirmation(self):
+        s=self.start;d=s+WEEK
+        rows=[(s+1,d,100,'live','pro',None,''),(s+100,d,13,'live','pro',None,''),
+              (s+200,d,56,'live','pro',s+200,'extra')]
+        self.assertEqual(len(partition(rows)),1);self.assertIn('rise_candidate',partition(rows)[0])
+        periods=partition(rows+[(s+300,d,55,'live','pro',s+200,'extra')])
+        self.assertEqual(len(periods),1);self.assertEqual(periods[0]['capacity_factor'],2)
+    def test_doubling_does_not_merge_real_full_reset_plan_change_or_window_rollover(self):
+        s=self.start;d=s+WEEK
+        base=[(s+1,d,100,'live','pro',None,''),(s+100,d,13,'live','pro',None,'')]
+        for new in [[(s+200,d,100,'live','pro',None,''),(s+300,d,99,'live','pro',None,'')],
+                    [(s+200,d,56,'live','plus',None,'')],
+                    [(s+4000,d+3600,56,'live','pro',None,'')]]:
+            self.assertEqual(len(partition(base+new)),2)
+        delayed=base+[(s+200,d,56,'live','pro',None,''),(s+300,d,12,'live','pro',None,'')]
+        self.assertNotIn('capacity_factor',partition(delayed)[0])
     def test_notification_defaults_and_custom_threshold_validation(self):
         from desktop_core import normalized
         self.assertEqual(normalized({})['quota_decline_threshold'],10)
@@ -19,12 +48,17 @@ class QuotaHistoryTests(unittest.TestCase):
     def setUp(self):
         self.db=sqlite3.connect(':memory:');migrate(self.db)
         self.db.execute('''CREATE TABLE usage (stamp REAL,tokens INTEGER,model TEXT,
-            input_tokens INTEGER,output_tokens INTEGER,known INTEGER)''')
+            input_tokens INTEGER,output_tokens INTEGER,known INTEGER,fingerprint TEXT UNIQUE)''')
         self.db.execute('CREATE INDEX usage_stamp ON usage(stamp)')
+        from quota_workload import migrate as migrate_workload
+        migrate_workload(self.db)
         self.start=1800000000
     def tearDown(self):self.db.close()
     def token(self,stamp,n,model='model-a'):
-        self.db.execute('INSERT INTO usage VALUES(?,?,?,?,?,1)',(stamp,n,model,int(n*.8),int(n*.2)))
+        key=str(stamp)+':'+model
+        self.db.execute('INSERT INTO usage VALUES(?,?,?,?,?,1,?)',(stamp,n,model,int(n*.8),n-int(n*.8),key))
+        from quota_workload import store as store_workload
+        store_workload(self.db,key,model,n,0,dict(speed='standard',effort='medium'))
     def cycle(self,start,amount=1200,model='model-a'):
         for offset,remaining in [(100,100),(86400,70),(172800,40)]:
             store(self.db,start+offset,start+WEEK,remaining,plan='pro')
@@ -256,5 +290,37 @@ class QuotaHistoryTests(unittest.TestCase):
         parsed=windows_from_limits(dict(plan_type='plus',primary=dict(used_percent=50,window_minutes=10080,resets_at=self.start+WEEK)))
         self.assertEqual(parsed[0]['plan'],'plus')
 
+
+
+class CapacityReferenceTests(unittest.TestCase):
+    def cycle(self,**changes):
+        result=dict(closed=True,complete=True,fresh=True,drop=30,estimated_total=1000,plan='pro')
+        result.update(changes);return result
+    def test_reference_is_independent_of_workload_and_twenty_point_gate(self):
+        from quota_history import capacity_reference
+        result=capacity_reference(self.cycle(closed=False,drop=5,estimated_total=500,eligible=False),self.cycle())
+        self.assertEqual(result['change'],-50);self.assertTrue(result['preliminary'])
+        self.assertEqual(capacity_reference(self.cycle(),self.cycle())['change'],0)
+        self.assertEqual(capacity_reference(self.cycle(estimated_total=2000),self.cycle())['change'],100)
+    def test_unreliable_or_missing_estimates_do_not_produce_reference(self):
+        from quota_history import capacity_reference
+        for changes in [dict(complete=False),dict(fresh=False),dict(drop=4),dict(corrected=True),dict(rise_pending=True),
+                        dict(estimated_total=0),dict(estimated_total=None),dict(estimated_total=True),
+                        dict(estimated_total=float('nan')),dict(estimated_total=float('inf')),dict(plan=''),dict(plan='plus')]:
+            for first in (True,False):
+                with self.subTest(changes=changes,first=first):
+                    a,b=self.cycle(**changes),self.cycle()
+                    self.assertIsNone(capacity_reference(a,b)['change'] if first else capacity_reference(b,a)['change'])
+        self.assertIsNone(capacity_reference(self.cycle(),None)['change'])
+        self.assertIsNone(capacity_reference(self.cycle(),self.cycle(closed=False))['change'])
+        self.assertIsNone(capacity_reference(self.cycle(),self.cycle(),pending=True)['change'])
+    def test_cached_reference_is_recomputed_without_loosening_strict_gate(self):
+        from quota_history import compare_cycles
+        fields=dict(eligible=True,model='sol',model_share=1,output_share=.2,kind='natural')
+        old=self.cycle(id='old',**fields)
+        current=self.cycle(id='new',closed=False,estimated_total=500,reference_change=999,**fields)
+        compare_cycles([old,current])
+        self.assertEqual(current['reference_change'],-50)
+        self.assertIsNone(current['change']);self.assertIn('记录不完整',current['comparison_reason'])
 
 if __name__=='__main__':unittest.main()

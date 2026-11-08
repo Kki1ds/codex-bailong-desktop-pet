@@ -229,7 +229,7 @@ class FullScreenGuard(QObject):
             yielded=any(any(g.x()<x+w and x<g.x()+g.width() and g.y()<y+h and y<g.y()+g.height()
                 for x,y,w,h in self.displays) for g in (widget.frameGeometry() for widget in targets))
             self.pet.set_fullscreen_yield(yielded)
-        self.pet._video_yielded=yielded
+        self.pet._video_yielded=False if hasattr(self.pet,'set_fullscreen_yield') else yielded
 
 def set_yield(value):
     """Whether the guard hides overlays over full-screen Spaces; independent of the window level."""
@@ -268,3 +268,33 @@ def on_reopen(callback):
         lib.class_replaceMethod(cls,sel,ctypes.cast(_reopen[0],ctypes.c_void_p),b'B@:@B')
         return True
     except (OSError,AttributeError,ValueError):return False
+
+
+def foreground_geometry(area,own_pid):
+    """Frontmost application's first on-screen normal window, in Qt logical coordinates.
+
+    Only PID, layer and bounds are inspected; no window titles or image data.
+    Quartz and Qt use top-left global points, independent of Retina backing pixels.
+    """
+    workspace=_send(_runtime().objc_getClass(b'NSWorkspace'),'sharedWorkspace')
+    app=_send(workspace,'frontmostApplication')
+    pid=_send(app,'processIdentifier',ctypes.c_int) if app else 0
+    if not pid or pid==own_pid:return None
+    cg,cf,keys=_quartz();windows=cg.CGWindowListCopyWindowInfo(1|16,0)
+    if not windows:return None
+    try:
+        for i in range(cf.CFArrayGetCount(windows)):
+            info=cf.CFArrayGetValueAtIndex(windows,i);owner=ctypes.c_int64();layer=ctypes.c_int64();rect=_Rect()
+            if not cf.CFNumberGetValue(cf.CFDictionaryGetValue(info,keys['OwnerPID']),4,ctypes.byref(owner)) or owner.value!=pid:continue
+            if not cf.CFNumberGetValue(cf.CFDictionaryGetValue(info,keys['Layer']),4,ctypes.byref(layer)) or layer.value!=0:continue
+            if not cg.CGRectMakeWithDictionaryRepresentation(cf.CFDictionaryGetValue(info,keys['Bounds']),ctypes.byref(rect)):continue
+            if rect.w<=0 or rect.h<=0:continue
+            return clipped_geometry((rect.x,rect.y,rect.x+rect.w,rect.y+rect.h),area)
+    finally:cf.CFRelease(windows)
+    return None
+
+
+def clipped_geometry(rect,area):
+    left,top,right,bottom=rect;x,y,w,h=area
+    left,top,right,bottom=max(left,x),max(top,y),min(right,x+w),min(bottom,y+h)
+    return (left,top,right,bottom) if left<right and top<bottom else None

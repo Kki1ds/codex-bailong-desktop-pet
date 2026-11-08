@@ -50,11 +50,11 @@ if __name__=='__main__':unittest.main()
 @unittest.skipUnless(sys.platform=='darwin','macOS accessibility setting')
 class ReduceMotionTests(unittest.TestCase):
     def tearDown(self):
-        import settings_controls;settings_controls.motion_enabled.cache_clear()
+        import settings_controls;settings_controls._system_motion_enabled.cache_clear()
     def test_system_reduce_motion_disables_control_animation(self):
         import settings_controls
         for reduced in (True,False):
-            settings_controls.motion_enabled.cache_clear()
+            settings_controls._system_motion_enabled.cache_clear()
             with patch('mac_native.reduce_motion',return_value=reduced):self.assertIs(settings_controls.motion_enabled(),not reduced)
     def test_reading_the_real_setting_returns_a_bool(self):
         from mac_native import reduce_motion

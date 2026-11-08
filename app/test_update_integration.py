@@ -13,6 +13,10 @@ class UpdateIntegration(unittest.TestCase):
     def setUp(self):
         # The update flow under test is the Windows one; macOS builds switch it off.
         patcher=patch('update_controller.UNSUPPORTED',False);patcher.start();self.addCleanup(patcher.stop)
+        """用隔离能力夹具检查 Windows 更新界面及安装流程"""
+        support=patch('app_updates.program_updates_supported',return_value=True)
+        support.start();self.addCleanup(support.stop)
+        platform=patch('desktop_settings.MACOS',False);platform.start();self.addCleanup(platform.stop)
         journeys.InteractionTests.setUp(self)
     tearDown=journeys.InteractionTests.tearDown
     settings=journeys.InteractionTests.settings
