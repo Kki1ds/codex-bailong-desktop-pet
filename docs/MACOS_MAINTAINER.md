@@ -2,7 +2,7 @@
 
 给接手维护 macOS 社区版的人（或 Claude）。用户手册见 [MACOS.md](MACOS.md)；上游遗留的 HANDOFF.md / AGENTS.md 针对 Windows 版，不适用于 macOS 发布。
 
-## 1.6.0 移植候选（2026-11-07，未发布）
+## 1.6.0 移植候选（2026-11-08 合并到 main，未发布）
 
 - 开发分支 `codex/macos-1.6.0` 同步上游 v1.6.0（18a9ba43）及发布后首页提交 214d1534；候选版本 1.6.0-mac.1。公开安装入口仍为 1.2.1-mac.1。
 - 新增前台窗口几何读取用于窗口避让：AppKit 前台 PID、Quartz 普通可见窗口边界，仅取所在屏幕交集；不查询标题或截图。Retina 坐标保持全局逻辑点，不再除以 DPR。
@@ -11,7 +11,7 @@
 - 旧库整理在 Mac 复用 storage_locations.plain，仅规范化系统别名，继续拒绝用户链接。
 - 新速率/服务状态浮窗继承 HintBubble，已共用 mac_native.overlay；活动区编辑器在卡片内部，无需另建原生窗口。
 - Mac 检查入口：`.venv/bin/python tools/check_source.py --macos`。Windows 安装事务、历史安装清理及 PE 裁剪留在 Windows job；减少动态效果测试不使用强制启用动效的夹具。
-- 验证及人工审核清单见 [候选验证记录](releases/v1.6.0-mac.1.md)。本轮提交 PR 审核，不替换当前安装，不发布 Release。
+- 验证及人工验收结果见 [候选验证记录](releases/v1.6.0-mac.1.md)。PR #2 经用户确认以合并提交方式并入 main（保留上游合并历史，不要 squash）；未发布 Release。发布 1.6.0-mac.1 前需补高清素材、Chrome 前台窗口避让路线和匹配场景性能对照。
 
 ## 1.2.1 移植记录（2026-10-30）
 

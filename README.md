@@ -10,7 +10,7 @@ Windows 当前公开版 **v1.6.0**。在线安装器直接获取最新累计程�
 
 **[下载 macOS 社区版 1.2.1-mac.1](https://github.com/Kki1ds/codex-bailong-desktop-pet/releases/tag/v1.2.1-mac.1)**
 
-> 开发分支正在移植上游 v1.6.0，候选版本 1.6.0-mac.1 尚未发布。
+> `main` 源码已同步上游 v1.6.0（候选 1.6.0-mac.1），尚未发布 macOS 安装包；上面的下载入口仍是 1.2.1-mac.1。从源码运行得到的是 1.6.0 候选代码，验收情况见 [候选验证记录](docs/releases/v1.6.0-mac.1.md)。
 
 ## macOS 社区版
 
@@ -18,7 +18,8 @@ macOS 社区版由 [Kki1ds](https://github.com/Kki1ds) 在本 fork 维护，不�
 
 | 项目 | macOS 社区版 |
 | --- | --- |
-| 基于 | 上游 v1.2.1（c725ede） |
+| 安装包 | 1.2.1-mac.1，基于上游 v1.2.1（c725ede） |
+| `main` 源码 | 1.6.0-mac.1 候选，基于上游 v1.6.0（18a9ba43），未发布安装包 |
 | 测试环境 | Apple Silicon，macOS 27.2，内置屏与外接显示器，ChatGPT.app 内置 Codex CLI |
 | 不在范围内 | Intel Mac 未测试；不声明兼容所有 macOS 版本（最低设为 macOS 12） |
 
@@ -54,6 +55,8 @@ macOS 社区版由 [Kki1ds](https://github.com/Kki1ds) 在本 fork 维护，不�
 尽力维护，不承诺跟进每个上游版本：上游发布次版本或主版本（例如 1.1.0、2.0.0）时，同步代码、在 Mac 上实测并发布新的 macOS 包；补丁版本一般不单独跟进，影响使用的严重问题除外。macOS 相关问题请在 [本仓库 Issues](https://github.com/Kki1ds/codex-bailong-desktop-pet/issues) 反馈；Windows 版问题请到上游。
 
 ### 从源码运行
+
+`main` 当前为 1.6.0 候选代码，比 1.2.1-mac.1 安装包新，新增项目成本、自动价表、主题、实时数字、大卡片和四种走动模式。高清动画、Chrome 前台时的窗口避让路线和性能对照尚未在 Mac 上验收。
 
 ```bash
 brew install python@3.12
