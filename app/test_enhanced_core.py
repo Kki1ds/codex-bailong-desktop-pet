@@ -19,6 +19,24 @@ class CoreTests(unittest.TestCase):
         r.apply('a',event('task_started',turn_id='2'))
         self.assertEqual(sum(e['kind']=='complete' for e in r.apply('a',event('task_complete'))),1)
 
+    def test_late_tool_completion_does_not_reopen_completed_turn(self):
+        r=ActivityReducer()
+        r.apply('a',event('task_started',turn_id='t1'))
+        r.apply('a',event('task_complete',turn_id='t1'))
+        self.assertEqual(r.apply('a',event('item_completed',turn_id='t1',item={'type':'CommandExecution','status':'completed'})),[])
+        self.assertTrue(r.sessions['a'].done);self.assertEqual(r.sessions['a'].state,'complete')
+        r.apply('a',event('task_started',turn_id='t2'))
+        r.apply('a',event('item_completed',turn_id='t2',item={'type':'CommandExecution','status':'completed'}))
+        self.assertFalse(r.sessions['a'].done)
+    def test_tail_seeded_completion_ignores_late_tool_record(self):
+        # A tail read can begin after task_started and still see the completion.
+        r=ActivityReducer()
+        r.apply('b',event('task_complete',turn_id='t9'),historical=True)
+        r.apply('b',event('item_completed',turn_id='t9',item={'type':'CommandExecution','status':'completed'}),historical=True)
+        self.assertTrue(r.sessions['b'].done)
+        r.apply('c',event('item_completed',turn_id='t5',item={'type':'CommandExecution','status':'completed'}),historical=True)
+        self.assertFalse(r.sessions['c'].done)
+
     def test_ipc_terminal_turn_rejects_late_log_and_compaction(self):
         r=ActivityReducer();r.apply('s',event('task_started',turn_id='old'))
         self.assertEqual(r.terminate('s','interrupted','old')[-1]['state'],'interrupted')

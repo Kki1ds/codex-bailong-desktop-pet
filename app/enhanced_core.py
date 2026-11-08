@@ -95,6 +95,7 @@ class Session:
     message: str = '等待新的 Codex 消息'
     turn: str = ''
     closed_turn: str = ''
+    completed_turn: str = ''
     done: bool = True
     source_subagent: bool = False
     attached_parent: str = ''
@@ -223,6 +224,7 @@ class ActivityReducer:
         elif kind == 'event_msg' and typ in ('task_complete', 'task_completed'):
             changed=s.compacting
             s.compacting=False;s.waiting_reason=''
+            s.completed_turn=str(p.get('turn_id') or s.turn or '')
             if not s.done:
                 s.done = True
                 s.state, s.message = 'complete', '任务已完成，可以查看 Codex 回复啦。'
@@ -237,6 +239,10 @@ class ActivityReducer:
         elif kind == 'event_msg' and typ == 'item_completed':
             item = p.get('item') or {}
             it = item.get('type')
+            # Codex can log a background tool's completion after task_complete
+            # under the same turn; that record must not reopen the finished turn.
+            if s.done and s.completed_turn and str(p.get('turn_id') or '')==s.completed_turn:
+                return events
             if it == 'UserMessage':
                 user_message = True
                 s.title = content_text(item.get('content'))[:42] or s.title

@@ -23,7 +23,7 @@ def run(module):
   return result
 if __name__=='__main__':
  # Windows installer/PE suites require native Windows APIs and remain in the Windows job.
- macos=[m for m in MODULES if m not in ('test_audit_fixes','test_release_retention','test_qt_trim')]+['test_macos_160','test_macos_upgrade','test_macos_codex','test_live_unix','test_mac_platform_services','test_mac_full_screen','test_update_integration']
+ macos=[m for m in MODULES if m not in ('test_audit_fixes','test_release_retention','test_qt_trim')]+['test_macos_160','test_macos_upgrade','test_macos_codex','test_live_unix','test_mac_platform_services','test_mac_full_screen','test_update_integration','test_enhanced_core']
  modules=macos if sys.argv[1:]==['--macos'] else sys.argv[1:] or ['test_source_checks', *MODULES]
  with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:results=list(pool.map(run,modules))
  for item in results:print(json.dumps(item,ensure_ascii=True),flush=True)
