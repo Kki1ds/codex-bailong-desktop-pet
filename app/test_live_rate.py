@@ -14,6 +14,13 @@ def count(value):return dict(type='token_count',info=dict(total_token_usage=dict
 
 class LiveRateTests(unittest.TestCase):
     @patch('live_rate.time.time',return_value=1000)
+    def test_future_sample_does_not_block_normal_samples(self,_):
+        rate=LiveOutputRate()
+        rate.ingest('s',count(100),998,historical=True,now=0)
+        rate.ingest('s',count(10000),4600,now=1)
+        rate.ingest('s',count(140),1000,now=2)
+        self.assertEqual(rate.snapshot(2)['rate'],20)
+    @patch('live_rate.time.time',return_value=1000)
     def test_recent_delta_expiry_finish_and_historical_not_live(self,_):
         r=LiveOutputRate();r.ingest('s',count(100),990,historical=True,now=0)
         self.assertIsNone(r.snapshot(0)['rate'])
@@ -27,6 +34,15 @@ class LiveRateTests(unittest.TestCase):
         r.ingest('s',count(120),1000,now=2);self.assertEqual(r.snapshot(2)['rate'],20)
         r.ingest('s',count(1),1001,now=3);self.assertIsNone(r.snapshot(3)['rate'])
         r.ingest('s',count(100000),900,now=4);self.assertIsNone(r.snapshot(4)['rate'])
+    @patch('live_rate.time.time',return_value=1000)
+    def test_older_segment_does_not_rewind_the_live_watermark(self,_):
+        rate=LiveOutputRate()
+        rate.ingest('s',count(10000),998,historical=True,now=0)
+        rate.ingest('s',dict(type='task_started'),999,now=1)
+        rate.ingest('s',count(1),990,historical=True,now=1)
+        rate.ingest('s',count(10020),1000,now=2)
+        self.assertEqual(rate.snapshot(2)['rate'],20)
+
     @patch('live_rate.time.time',return_value=1000)
     def test_all_supported_terminal_aliases_stop_rate_without_waiting_for_expiry(self,_):
         for kind in ('task_complete','task_completed','task_aborted','turn_aborted','turn_completed','turn_cancelled'):

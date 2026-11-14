@@ -67,7 +67,7 @@ class CostExtensionTests(unittest.TestCase):
     def test_model_back_discards_uncommitted_fields(self):
         host=QWidget();self.widgets.append(host);host.resize(248,370);host.show();editor=PricingEditor(host);editor.edit_model('gpt-6.1-sol');editor.price_fields[0].setText('-2');editor.go_back();self.assertIsNone(editor.model);self.assertNotIn('gpt-6.1-sol',editor.draft['prices']);self.assertFalse(prefs.path().exists())
     def test_status_classification_and_validation(self):
-        self.assertEqual(decode_status({'status':{'indicator':'none'}})['tone'],'ok');self.assertEqual(decode_status({'status':{'indicator':'major'}})['tone'],'warn')
+        self.assertEqual(decode_status({'status':{'indicator':'none'}})['tone'],'unknown');self.assertEqual(decode_status({'status':{'indicator':'major'},'components':[dict(name='Codex in ChatGPT Desktop',status='major_outage')]})['tone'],'warn')
         with self.assertRaises(ValueError):decode_status({'status':{}})
     def test_color_semantics_in_dark_and_light(self):
         for surface in ('#fff','#111'):
@@ -100,7 +100,7 @@ class CostExtensionTests(unittest.TestCase):
         from public_status import PublicStatus
         from PySide6.QtNetwork import QNetworkReply
         from types import SimpleNamespace
-        service=PublicStatus();service.last=decode_status({'status':{'indicator':'none'}},now=123)
+        service=PublicStatus();service.last=decode_status({'status':{'indicator':'none'},'components':[dict(name='Codex in ChatGPT Desktop',status='operational')]},now=123)
         service.reply=SimpleNamespace(error=lambda:QNetworkReply.NetworkError.TimeoutError,deleteLater=lambda:None);service._finished();self.assertEqual(service.value['tone'],'unknown');self.assertEqual(service.value['previous']['checked'],123)
     def test_new_currency_requires_rate_and_does_not_save_one_by_accident(self):
         host=QWidget();self.widgets.append(host);host.resize(230,410);host.show();editor=PricingEditor(host);editor.currency.setCurrentIndex(editor.currency.findData('CNY'));editor.commit_draft();self.assertFalse(prefs.path().exists());self.assertIn('未保存',editor.status.text())

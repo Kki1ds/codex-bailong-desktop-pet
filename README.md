@@ -2,9 +2,9 @@
 
 在桌面查看 Codex 任务状态、完成提醒、账户额度和 Token 用量，也可以让白龙陪你一起工作。支持仅卡片使用，人物动画按需下载。
 
-**[Windows 首次安装](https://github.com/Wunsch2048/codex-bailong-desktop-pet/releases/download/v1.6.0/bailong-desktop-pet-1.6.0-setup.exe)** | **[程序更新](https://github.com/Wunsch2048/codex-bailong-desktop-pet/releases/latest)** | [Linux 预览版](#linux--niri--kde) | [macOS 社区版](#macos)
+**[Windows 首次安装](https://github.com/Wunsch2048/codex-bailong-desktop-pet/releases/download/v1.7.0/bailong-desktop-pet-1.7.0-setup.exe)** | **[程序更新](https://github.com/Wunsch2048/codex-bailong-desktop-pet/releases/latest)** | [Linux 预览版](#linux--niri--kde) | [macOS 社区版](#macos)
 
-Windows 当前公开版 **v1.6.0**。在线安装器直接获取最新累计程序；已有用户可在“设置 → 维护 → 软件更新”升级，无需逐个安装旧补丁。升级保留设置、统计和已下载素材。
+Windows 当前公开版 **v1.7.0**。在线安装器直接获取最新累计程序；已有用户可在“设置 → 维护 → 软件更新”升级，无需逐个安装旧补丁。升级保留设置、统计和已下载素材。
 
 ![白龙桌宠封面](docs/media/cover.png)
 
@@ -65,15 +65,14 @@ brew install python@3.12
 
 ## 最近更新
 
-### v1.6.0
+- **账号聊天**：Windows 新增「ChatGPT 套餐」预览，可在浏览器连接账号，也可继续使用自定义 API。改进了授权进度提示和模型列表加载。感谢 @pengxitai37-stack 在 #27 分享源码原型，浏览器授权和 Windows 本地凭据保存参考了这份实现。
+- **卡片动效**：「今日」和「实时」在两种卡片中逐位滚动，速率下降时向下翻。改进刷新时的闪烁、数字对齐和滚动边界。今日用量到 10B 才切换显示单位。
+- **用量图表**：日报和 24 小时图用不同颜色区分模型，悬停可看各模型用量和回合速率中位数。日报的成本入口更容易辨认。
+- **额度与浮窗**：周额度对照会寻找同套餐下更合适的历史周期，条件不足时给出黄色参考。实时和额度浮窗的布局、位置与信息格式更一致。
+- **状态与性能**：修复续写会话在重启后漏报、已读后完成提醒未消失的问题。减少 Token 汇总和图表刷新时的重复计算。
+- **Windows 兼容**：修复登录启动目录可能留下临时快捷方式的问题，改善远程桌面切换显示比例后人物与卡片错位。
 
-- **数字更及时**：今日 Token 随日志增量更新，今日与实时速率加入数字翻动，排版更紧凑。
-- **价格自动更新**：API 单价和官方 Credits 价表可自动更新，历史价格与手动设置保留。
-- **额度更好读**：混用模型也可查看黄色参考差异，图表位置上移。
-- **提醒更准确**：会话继续工作后撤销旧完成提醒，避免内部记录被误当成额外会话。
-- **切换更顺畅**：统一大卡片默认高度，改善首次展开、筛选栏和设置分区切换；修复页面复位、日报背景闪块、多处悬停闪烁及实时窗口收起。
-
-[查看 v1.6.0 完整更新与下载](https://github.com/Wunsch2048/codex-bailong-desktop-pet/releases/tag/v1.6.0)
+[查看 v1.7.0 完整更新与下载](https://github.com/Wunsch2048/codex-bailong-desktop-pet/releases/tag/v1.7.0)
 
 ## 主要功能
 
@@ -137,7 +136,7 @@ Linux 适配源码已合入主分支，预览包由 [helantianshen](https://gith
 
 ## 文档与反馈
 
-[使用说明](docs/使用说明.md) | [开发与构建](docs/DEVELOPMENT.md) | [维护规范](docs/维护规范验证入口.md) | [迭代历史](docs/迭代历史.txt) | [提交问题](https://github.com/Wunsch2048/codex-bailong-desktop-pet/issues/new/choose)
+[使用说明](docs/使用说明.md) | [开发与构建](docs/DEVELOPMENT.md) | [维护规范](docs/维护规范验证入口.md) | [迭代历史](docs/迭代历史.txt) · [旧版专项记录](docs/archive) | [提交问题](https://github.com/Wunsch2048/codex-bailong-desktop-pet/issues/new/choose)
 
 反馈请附版本、系统缩放和复现步骤，并去掉截图、日志中的私密信息。
 

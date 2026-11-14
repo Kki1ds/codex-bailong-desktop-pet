@@ -6,8 +6,13 @@ class LiveOutputRate:
     def __init__(self):self.sessions={}
     def ingest(self,sid,payload,stamp,*,historical=False,now=None):
         now=time.monotonic() if now is None else now
+        if not isinstance(stamp,(int,float)) or not math.isfinite(stamp):return
+        wall=time.time()
+        if stamp>wall+5:return
         if sid not in self.sessions and len(self.sessions)>=128:self.sessions.pop(next(iter(self.sessions)))
         s=self.sessions.setdefault(sid,dict(water=None,last_stamp=None,active=False,points=deque(maxlen=32),seen=0.,rate=None,ttl=12.,interval=None,sampled_at=None))
+        if s['last_stamp'] is not None and stamp<s['last_stamp']:
+            return  # An older rollout must not rewind the live counter.
         kind=payload.get('type')
         if kind in ('task_started','turn_started'):
             s.update(active=not historical,rate=None,seen=now,points=deque(maxlen=32))
@@ -20,9 +25,8 @@ class LiveOutputRate:
             if type(out) is not int or not 0<=out<2**53:return
             previous=s['water'];previous_stamp=s['last_stamp'];s['water']=out;s['last_stamp']=stamp
             if historical:return
-            if not isinstance(stamp,(int,float)) or not math.isfinite(stamp):return
             # Old backlog timestamps must not masquerade as output arriving now.
-            if time.time()-stamp>15 or stamp-time.time()>5:return
+            if wall-stamp>15:return
             if previous is not None and out<previous:s['points'].clear();s['rate']=None
             if not s['active']:
                 # A fresh increase can attach to a task that predates our 512KB tail/bootstrap.

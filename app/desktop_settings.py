@@ -52,6 +52,8 @@ class PathsJob(QThread):
         from codex_connection import validate_paths
         try:
             if self.values.get('operation')=='list_wsl':
+                from codex_connection import wsl_supported
+                if not wsl_supported():raise ValueError('macOS 不支持 WSL 连接来源。')
                 from wsl_codex import distributions
                 self.result.emit(distributions())
             else:self.result.emit(validate_paths(self.values))
@@ -368,7 +370,7 @@ class SettingsDialog(QDialog):
         """维护页保留当前平台可执行的更新、安装和数据入口"""
         from app_updates import program_updates_supported
         pet=self.pet
-        program_supported=not MACOS and program_updates_supported()
+        program_supported=program_updates_supported()
         maintenance=self.tab('更新与维护')
         self.section(maintenance,'软件更新' if program_supported else '动画更新','检查 GitHub 公开稳定版；下载和安装由你主动发起。' if program_supported else 'macOS 请到本仓库 Releases 下载新版；动画在素材页下载。' if MACOS else '只检查兼容的动画补丁；程序需手动更新。')
         if program_supported:self.check(maintenance,'update_checks','自动检查更新（不自动下载）')
@@ -521,6 +523,8 @@ class SettingsDialog(QDialog):
         for key in ('startup','codex_startup'):
             values.setdefault(key,self.draft.baseline.get(key,False) if self.draft else False)
         self.draft=SettingsDraft(values);self.fill(self.draft.values);self.refresh_library();self.update_draft_state()
+        if getattr(self.pet,'settings_read_failed',False):
+            self.status.setText('原设置无法读取，当前使用临时默认值。恢复文件后请重启桌宠。')
     def sync_from_pet(self,changes=None,read_startup=False):
         if self.draft is None:return
         previous=self.draft.values.copy()

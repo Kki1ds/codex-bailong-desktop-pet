@@ -99,7 +99,7 @@ class DesktopPet(EnhancedPet):
         self.bubble.conversationRequested.connect(self.open_conversation)
         self.bubble.optionRequested.connect(self.set_option)
         self.bubble.modeChanged.connect(self.save_bubble_mode)
-        if self.settings.get('schema')!=2 and CONFIG.exists():
+        if not self.settings_read_failed and self.settings.get('schema')!=2 and CONFIG.exists():
             shutil.copy2(CONFIG,STATE_DIR/'settings-before-0.5.0.json')
         self.settings=normalized(self.settings)
         from settings_controls import set_motion_mode,settle_motion
@@ -339,13 +339,17 @@ class DesktopPet(EnhancedPet):
         if not self.isVisible() or self.dragging or self.throwing or self.walking or (getattr(self,'edge_dock',None) and self.edge_dock.active):return False
         if now<max(self.next_chain,self.buffer_until,self.status_hold):return False
         if self.settings.get('status_actions',True) and (self.reactions.busy(now) or self.bubble.status_indicator.is_busy()):return False
-        if self.roaming.pending_start or self.roaming.paused_until is not None:
-            self.start_walk();return self.walking
-        if self.roaming.queue:self.start_walk();return self.walking
+        route_pending=self.roaming.pending_start or self.roaming.paused_until is not None or bool(self.roaming.queue)
+        if route_pending:
+            self.start_walk()
+            if self.walking:return True
+            if self.roaming.pending_start:
+                transition=self.bubble.size_transition
+                if transition.running or transition.preparing:return False
         self.next_chain=now+self.settings['random_interval']+self.settings['action_gap']
         choices=['idle'];weights=[30]
         if self.random_actions:choices+=['turn','variant'];weights+=[10,40]
-        if self.wandering and not self.settings['no_move']:choices+=['walk'];weights+=[20]
+        if self.wandering and not route_pending and not self.settings['no_move']:choices+=['walk'];weights+=[20]
         selected=random.choices(choices,weights)[0]
         if selected=='walk':self.start_walk();return self.walking
         if selected=='turn':
@@ -376,6 +380,8 @@ class DesktopPet(EnhancedPet):
         if sys.platform=='win32' and self.enhanced_ready and not self.dragging:
             from ctypes import wintypes
             msg=wintypes.MSG.from_address(int(message))
+            if msg.message in (0x007E,0x02E0): # WM_DISPLAYCHANGE, WM_DPICHANGED
+                self.request_display_reflow()
             if msg.message==0x84: # WM_NCHITTEST. Preserve soft alpha in the layered window.
                 from native_coordinates import client_position,message_position
                 pos=client_position(msg.hWnd,*message_position(msg.lParam),self.width(),self.height())
@@ -823,7 +829,8 @@ class DesktopPet(EnhancedPet):
         self.next_chain=time.monotonic()+self.settings['random_interval'];self.next_talk=time.monotonic()+self.settings['talk_min']
         self.schedule_animation()
         if save:
-            try:self.save_settings()
+            try:
+                if self.save_settings() is False:raise OSError('原设置无法读取，本次未写入。恢复文件后请重启桌宠。')
             except (OSError,ValueError):
                 self.settings=previous;self._card_anchor=copy.deepcopy(previous.get('card_anchor'));self.apply_settings({},save=False);raise
         if changing_theme:self._theme_preview=None;self._theme_preview_pending=False
@@ -855,8 +862,10 @@ class DesktopPet(EnhancedPet):
     def watch_screen(self,screen):
         super().watch_screen(screen)
         def changed(*unused):
-            if getattr(self,'enhanced_ready',False):self.request_decode_sync()
+            if getattr(self,'enhanced_ready',False):
+                self.request_decode_sync();self.request_display_reflow()
         screen.geometryChanged.connect(changed)
+        screen.availableGeometryChanged.connect(changed)
         screen.logicalDotsPerInchChanged.connect(changed)
         screen.physicalDotsPerInchChanged.connect(changed)
 
@@ -864,6 +873,30 @@ class DesktopPet(EnhancedPet):
         super().ensure_on_screen()
         if getattr(self,'edge_dock',None):self.edge_dock.reconcile()
         if getattr(self,'enhanced_ready',False):self.request_decode_sync()
+
+    def request_display_reflow(self):
+        if not getattr(self,'_visibility_ready',False):return
+        if not hasattr(self,'_display_reflow_timer'):
+            self._display_reflow_timer=QTimer(self)
+            self._display_reflow_timer.setSingleShot(True)
+            self._display_reflow_timer.timeout.connect(self.reflow_display)
+        self._display_reflow_timer.start(100)
+
+    def reflow_display(self):
+        bubble=self.bubble
+        if self.dragging or getattr(self,'_card_dragged',False) or getattr(bubble,'_card_press',None):
+            self.request_display_reflow();return
+        transition=bubble.size_transition
+        if transition.running or transition.preparing or transition.landing.image is not None:transition.cancel()
+        attached=not (self.settings.get('panel_detached') or self._materials_missing or not self.settings.get('character_visible',True))
+        if attached:bubble._editor_positioned=False
+        self.ensure_on_screen()
+        if sys.platform!='win32' or not attached or not self.isVisible() or not bubble.isVisible():return
+        from native_coordinates import align_companion_position
+        target=bubble.content_geometry()
+        delta=target.topLeft()-self.pos()
+        align_companion_position(int(self.winId()),int(bubble.winId()),(delta.x(),delta.y()),
+                                 (target.width(),target.height()),self.devicePixelRatioF())
 
     def sync_decode_size(self):
         self.frame_size=self.desired_decode_size()
@@ -892,11 +925,13 @@ class DesktopPet(EnhancedPet):
         result=super().event(event)
         if event.type() in (QEvent.Type.DevicePixelRatioChange,QEvent.Type.Show,QEvent.Type.Resize) and getattr(self,'enhanced_ready',False):
             self.request_decode_sync()
+        if event.type()==QEvent.Type.DevicePixelRatioChange:self.request_display_reflow()
         return result
 
     def save_settings(self):
+        if self.settings_read_failed:return False
         if not self.enhanced_ready:return
-        super().save_settings()
+        self.collect_settings()
         self.settings['facing']=self.walk_direction
         screen=QApplication.screenAt(self.frameGeometry().center()) or QApplication.primaryScreen();a=screen.availableGeometry()
         self.settings['screen_position']=relative_position(self.x(),self.y(),self.width(),self.height(),(a.x(),a.y(),a.width(),a.height()),screen.name())
@@ -1385,7 +1420,8 @@ class DesktopPet(EnhancedPet):
     def backup_settings(self):
         try:
             path=STATE_DIR/('settings-backup-'+time.strftime('%Y%m%d-%H%M%S')+'.json')
-            self.save_settings();value=json.loads(CONFIG.read_text(encoding='utf-8'))
+            if self.save_settings() is False:raise OSError('原设置无法读取，无法备份。')
+            value=json.loads(CONFIG.read_text(encoding='utf-8'))
             if not isinstance(value,dict):raise ValueError('设置文件格式无效')
             atomic_json(path,value)
             self.say('设置备份已保存到配置目录。',5000);return path

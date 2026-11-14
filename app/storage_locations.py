@@ -4,9 +4,7 @@ from pathlib import Path,PurePosixPath
 
 MARKER='.bailong-storage.json'
 
-def data_dir():
-    from platform_paths import data_dir as platform_data_dir
-    return platform_data_dir()
+def data_dir():return __import__('platform_paths').data_dir()
 
 
 def configure_data_environment():

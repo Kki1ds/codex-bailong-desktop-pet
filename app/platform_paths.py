@@ -1,4 +1,8 @@
-"""Per-platform user folders. Windows keeps its original LOCALAPPDATA layout."""
+"""Per-platform user folders.
+
+Windows and Linux keep the original LOCALAPPDATA expression unchanged. Only
+macOS, where LOCALAPPDATA is normally unset, falls back to Application Support.
+"""
 import os,sys
 from pathlib import Path
 
@@ -9,14 +13,15 @@ BUNDLE_ID='io.github.wunsch2048.bailong-enhanced'
 # Hide console windows of helper processes; other systems take no flag.
 NO_WINDOW=0x08000000 if WINDOWS else 0
 
-def local_appdata():
-    # An explicit LOCALAPPDATA also isolates tests and QA runs on macOS.
-    value=os.environ.get('LOCALAPPDATA')
-    if value:return Path(value)
-    if MACOS:return Path.home()/'Library/Application Support'
-    return Path.home()
+def local_appdata(fallback=None):
+    """Parent of the data folder; fallback replaces the home-directory default outside macOS."""
+    if MACOS:
+        # An explicit LOCALAPPDATA still isolates tests and QA runs on macOS.
+        value=os.environ.get('LOCALAPPDATA')
+        return Path(value) if value else Path.home()/'Library/Application Support'
+    return Path(os.environ.get('LOCALAPPDATA',str(Path.home() if fallback is None else fallback)))
 
-def data_dir():return local_appdata()/APP_ID
+def data_dir(fallback=None):return local_appdata(fallback)/APP_ID
 
 def install_root():
     if WINDOWS:
