@@ -1,4 +1,8 @@
-# macOS 1.6.0 移植候选（2026-11-07，未发布）
+# macOS 1.7.0 同步（2026-11-14）
+
+分支 codex/macos-1.7.0，同步上游 v1.7.0（817ee63，含已合并的 macOS 路径 PR #28）。维护与验证见 docs/MACOS_MAINTAINER.md 和 docs/releases/v1.7.0-mac.1.md。
+
+# macOS 1.6.0 移植候选（2026-11-07）
 
 分支 codex/macos-1.6.0，同步上游 214d1534。交付终点为 fork main 的 PR，用户安排独立审核；不合并、不实装、不发布。当前公开入口继续保留 1.2.1-mac.1。维护与验证见 docs/MACOS_MAINTAINER.md 和 docs/releases/v1.6.0-mac.1.md。
 
@@ -12,7 +16,15 @@
 
 Mac 移植基于上游 c725ede，维护和本次验收见 docs/MACOS_MAINTAINER.md 与 docs/releases/v1.2.1-mac.1.md。Chrome 的原生全屏可能拆成同 PID 的多个窗口，需合并矩形覆盖后判断；旧的单窗口精确尺寸比较会漏检。Mac 完成提醒不打断全屏，旧版 Windows 的提醒优先级不适用于该通用模式。以下保留上游交接历史。
 
-# 2026-10-25 公开 v1.0.1 程序补丁
+
+# v1.6.2 已公开交付
+
+Windows 当前公开版为 v1.6.2，详见 [版本说明](docs/releases/v1.6.2.md)。
+
+# v1.6.1 已公开交付
+
+Windows 当前公开版为 v1.6.1，详见 [版本说明](docs/releases/v1.6.1.md)。
+
 # v1.6.0 已公开交付
 
 Windows 当前公开版为 v1.6.0，详见 [版本说明](docs/releases/v1.6.0.md)。Linux 社区预览与 macOS 社区版独立维护。

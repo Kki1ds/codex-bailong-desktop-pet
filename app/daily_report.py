@@ -15,7 +15,7 @@ from token_analytics import model_series,token_analogy
 from book_reference import analogy as book_analogy,catalog as book_catalog
 from chart_reveal import ChartReveal,RasterChart,bar_shape
 from chart_curve import SmoothTrace
-from rate_chart import ComboChart,colors as rate_colors,rate_text
+from rate_chart import ComboChart,colors as rate_colors,rate_text,model_swatch
 from spring_motion import island_response,dismiss_progress,stage,EXPAND_MS,DISMISS_MS
 from card_motion import card_geometry,paint_card
 
@@ -149,7 +149,7 @@ class ReportPlot(QWidget,RasterChart,ComboChart):
                     if self.selected and model!=self.selected:continue
                     amount=b['values'].get(model,0);height=chart.height()*amount/max(1,top)
                     if height<=0:continue
-                    p.fillRect(QRectF(chart.left()+i*slot,y-height,max(.8,slot-1.5),height),QColor(chart_color(j,original=COLORS[j%len(COLORS)])));y-=height
+                    p.fillRect(QRectF(chart.left()+i*slot,y-height,max(.8,slot-1.5),height),QColor(model_swatch(j)));y-=height
                 p.restore()
                 label=b['start'] if b['start']==b['end'] else b['start']+' 至 '+b['end']
                 rect=QRectF(chart.left()+i*slot,chart.top(),slot,chart.height())
@@ -159,7 +159,7 @@ class ReportPlot(QWidget,RasterChart,ComboChart):
                     ranked=sorted(enumerate(model_order),key=lambda entry:-b['values'].get(entry[1],0))
                     used=[(j,model) for j,model in ranked if b['values'].get(model,0)>0]
                     for j,model in used[:3]:
-                        rows.append((model,compact_tokens(b['values'][model]),chart_color(j,original=COLORS[j%len(COLORS)])))
+                        rows.append((model,compact_tokens(b['values'][model]),model_swatch(j)))
                     if len(used)>3:rows.append(('其他模型',compact_tokens(sum(b['values'][m] for _,m in used[3:])),None))
                 self._combo_records.append(dict(rect=rect,label=label,subtitle=self.selected or '全部模型',rows=rows))
             labels=[(0,self.series['start'][5:].replace('-','/')),(1,self.series['end'][5:].replace('-','/'))]
@@ -170,14 +170,17 @@ class ReportPlot(QWidget,RasterChart,ComboChart):
         if not top:p.drawText(chart,Qt.AlignmentFlag.AlignCenter,'暂无 Token 用量')
     def _render_combo(self,p,dynamic):
         values=self.report.get('hours',[0]*24);plot=self.chart_rect()
-        bins=[dict(label=f'{i:02}:00–{i+1:02}:00',value=v) for i,v in enumerate(values)]
+        models=self.report.get('hour_models') or []
+        bins=[dict(label=f'{i:02}:00–{i+1:02}:00',value=v,models=models[i] if i<len(models) else {}) for i,v in enumerate(values)]
         items=(self.report.get('rates') or {}).get('yesterday') or []
-        self.combo_layers(p,dynamic,bins,items,plot)
+        self.combo_layers(p,dynamic,bins,items,plot,by_model=True)
         self.hits=[(r['rect'],b['label']+'  '+format(b['value'],',')+' Tokens') for r,b in zip(self._combo_records,bins)]
         self.points=[QPointF(r['rect'].center().x(),plot.bottom()) for r in self._combo_records]
         theme,bar,line=rate_colors();p.setFont(font(10));p.setPen(Qt.PenStyle.NoPen);p.setBrush(QColor(bar));p.drawRoundedRect(QRectF(3,3,5,7),1,1)
-        p.setPen(QColor(theme['muted']));p.drawText(QRectF(12,0,35,16),Qt.AlignmentFlag.AlignVCenter,'用量')
-        p.setPen(QPen(QColor(line),1.8));p.drawLine(QPointF(51,7),QPointF(63,7));p.setPen(QColor(theme['muted']));p.drawText(QRectF(68,0,65,16),Qt.AlignmentFlag.AlignVCenter,'回合均速')
+        if any(models):
+            p.setBrush(QColor(model_swatch(0)));p.drawRoundedRect(QRectF(3,3,5,7),1,1)
+        p.setPen(QColor(theme['muted']));p.drawText(QRectF(12,0,53,16),Qt.AlignmentFlag.AlignVCenter,'模型用量' if any(models) else '用量')
+        p.setPen(QPen(QColor(line),1.8));p.drawLine(QPointF(62,7),QPointF(74,7));p.setPen(QColor(theme['muted']));p.drawText(QRectF(79,0,65,16),Qt.AlignmentFlag.AlignVCenter,'回合均速')
         p.setPen(QColor(theme['muted']));p.setFont(font(10))
         for f,label in [(0,'00时'),(.5,'12'),(1,'24时')]:
             p.drawText(QRectF(plot.left()+f*plot.width()-(32 if f==1 else 15 if f==.5 else 0),plot.bottom()+2,32,18),Qt.AlignmentFlag.AlignVCenter|(Qt.AlignmentFlag.AlignRight if f==1 else Qt.AlignmentFlag.AlignLeft),label)
@@ -214,7 +217,7 @@ class ModelRow(QToolButton):
             outline=QColor(accent);outline.setAlpha(90)
             p.setPen(QPen(outline,1) if self.selected else Qt.PenStyle.NoPen)
             p.setBrush(fill);p.drawRoundedRect(QRectF(self.rect()).adjusted(2.5,1.5,-2.5,-1.5),7,7)
-        swatch=QColor(chart_color(self.index,original=COLORS[self.index%len(COLORS)]))
+        swatch=QColor(model_swatch(self.index))
         p.setPen(Qt.PenStyle.NoPen);p.setBrush(swatch)
         p.drawRoundedRect(QRectF(9,9,7,7),2,2)
         right=self.width()-25
@@ -294,7 +297,7 @@ class DailyReport(QWidget):
                 if self.page=='overview':
                     self.stats.report=r;self.stats.update()
                     self.hour_total.setText(compact_tokens(r.get('yesterday_total',0)));self.daily_cost.set_data(r,self.snapshot.get('projects'))
-                    if r.get('hours')!=old.get('hours') or r.get('rates')!=old.get('rates'):self.plot.set_data(r)
+                    if any(r.get(key)!=old.get(key) for key in ('hours','hour_models','rates')):self.plot.set_data(r)
                     self.readout.setText(self._daily_readout(r))
                     self._update_analogy(r)
                 elif self.page=='models':self._update_models()
@@ -597,7 +600,7 @@ class DailyReport(QWidget):
             self.plot=ReportPlot(r);chart_layout.addWidget(self.plot)
             self.readout=self.secondary(self.label(self._daily_readout(r),9))
             self.readout.setObjectName('report_hourly_readout');chart_layout.addWidget(self.readout)
-            # Inspection is shown in the dedicated two-value hover window.
+            # Hourly detail is shown in the chart's hover window.
             content.addWidget(chart)
             hint_row=QHBoxLayout();hint_row.setSpacing(4)
             chart_layout.removeWidget(self.readout);hint_row.addWidget(self.readout,1)
@@ -701,6 +704,9 @@ class DailyReport(QWidget):
     @measured('report_open_dispatch')
     def open(self,page='overview',_prepared=False):
         from panel_transition import present_barrier
+        if getattr(self,'_open_present_waiting',False):
+            if page==self.page:return
+            self._cancel_open_present()
         if not _prepared and not self.requested and not self.isVisible() and not self._animating and self._host_open_page is None:
             self._reset_model_visit()
         self._host_closing=False
@@ -717,9 +723,8 @@ class DailyReport(QWidget):
         native_open=not self.isVisible() and QApplication.platformName()=='windows'
         opacity=self.windowOpacity()
         try:
-            # A hidden layered HWND can retain its last fully open bitmap.
-            # Publish the zero-size reveal before making a cold show visible.
-            if native_open:self.setWindowOpacity(0.)
+            # Keep preparation hidden. A cold HWND has no Qt Expose yet, so
+            # repaint alone cannot establish the transparent opening frame.
             if not reversing:
                 if not _prepared:
                     count=len(book_catalog()['books'])
@@ -746,12 +751,44 @@ class DailyReport(QWidget):
                         transition.begin();transition.commit();return
                     owner.position_bubble()
                 self.sync_geometry();self._prepare_frame()
+            if native_open:
+                from native_landing import publish
+                self._open_native_seeded=False;self._open_native_error=''
+                try:self._open_native_seeded=publish(self,None)
+                except OSError as error:self._open_native_error=str(error)
+                # A reused Qt backing store can overwrite the seeded HWND
+                # during Expose. Keep that first flush masked until an actual
+                # exposed repaint, rather than restoring alpha before Expose.
+                self._open_present_opacity=opacity;self._open_present_waiting=True
+                self.setWindowOpacity(0.)
+                self.winId()
+                self.windowHandle().installEventFilter(self)
             self.show();self.raise_();self._input_passthrough(True)
             if not self.follow.active:self.follow.park(self.follow.shield)
-            if native_open:self.repaint();present_barrier()
+            if native_open:
+                QTimer.singleShot(0,self,self._open_present_ready)
+                return
+        except Exception:
+            self._cancel_open_present()
+            raise
         finally:
-            if native_open:self.setWindowOpacity(opacity)
+            if native_open and not getattr(self,'_open_present_waiting',False) and self.windowOpacity()!=opacity:self.setWindowOpacity(opacity)
         self._start_animation(1.)
+    def _open_present_ready(self):
+        if not getattr(self,'_open_present_waiting',False):return
+        if not self.isVisible() or not self.requested:return
+        handle=self.windowHandle()
+        if handle is None or not handle.isExposed():return
+        self._open_present_waiting=False
+        from panel_transition import present_barrier
+        self.repaint();present_barrier()
+        self.setWindowOpacity(self._open_present_opacity)
+        self._start_animation(1.)
+    def _cancel_open_present(self):
+        if not getattr(self,'_open_present_waiting',False):return False
+        self._open_present_waiting=False;opacity=self._open_present_opacity
+        self.hide();self.setWindowOpacity(opacity)
+        return True
     def _reset_model_visit(self):
         """Fresh panel entry resets UI state, independently of cached data."""
         self.selected_model=None;self.period='all'
@@ -766,6 +803,8 @@ class DailyReport(QWidget):
         if self._host_open_page is not None:
             self._host_open_page=None;self._host_prepared_page=None;self.requested=False;self._host_return=True;return
         if not self.requested and not self.isVisible():return
+        if self._cancel_open_present():
+            self.requested=False;self._restore_host();return
         if self.follow.active:
             if self.follow.committed:self._dismiss_after_host=True;return
             self.follow.cancel()
@@ -778,6 +817,10 @@ class DailyReport(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents,value)
         if self.windowHandle():self.windowHandle().setFlag(Qt.WindowType.WindowTransparentForInput,value)
         if sys.platform=='darwin':from mac_native import refresh;refresh(self) # Qt recomputes the window level on flag changes
+    def nativeEvent(self,event_type,message):
+        from native_window_style import preserve_layered_style
+        if preserve_layered_style(self,event_type,message):return True,0
+        return super().nativeEvent(event_type,message)
     @measured('report_prepare_frame')
     def _prepare_frame(self):
         self.refresh_button.freeze_motion('surface')
@@ -807,8 +850,7 @@ class DailyReport(QWidget):
         # time. Configure atomically so a quick reversal never jumps to 1/0.
         blocked=self.animation.blockSignals(True)
         self._motion_start=start;self._motion_target=target
-        # island_response is already exactly settled at .82. Preserve its
-        # visible trajectory, omit the motionless tail before chart handoff.
+        # The opening spring settles at .82, before the chart handoff.
         self.animation.setDuration(max(1,round((DISMISS_MS if target==0. else EXPAND_MS*.82)*min(1.,abs(target-start)))))
         self.animation.setStartValue(0.);self.animation.setEndValue(1.);self.animation.setCurrentTime(0)
         self.animation.blockSignals(blocked);self.fraction=start;play_animation(self.animation)
@@ -835,6 +877,11 @@ class DailyReport(QWidget):
     def _finished(self):
         from panel_transition import present_barrier
         guarded=self.requested and self._animating and QApplication.platformName()=='windows'
+        if guarded and not self._pending_rebuild:
+            # Keep the raster and live children in one HWND when the canvas
+            # is already at its final bounds. Only a layout change needs cover.
+            target=self.geometry_for_host(self.bubble.geometry())
+            guarded=self.geometry()!=target.adjusted(-self.PAD,-self.PAD,self.PAD,self.PAD)
         opacity=self.windowOpacity()
         if guarded:
             self.follow.shield.present(self.grab(),self.geometry());present_barrier()
@@ -914,6 +961,8 @@ class DailyReport(QWidget):
             if self.isVisible():self.repaint()
         finally:self._syncing=False
     def eventFilter(self,obj,event):
+        if getattr(self,'_open_present_waiting',False) and obj is self.windowHandle() and event.type()==QEvent.Type.Expose:
+            QTimer.singleShot(0,self,self._open_present_ready)
         if obj is self.bubble:
             if event.type() in (QEvent.Type.Move,QEvent.Type.Resize):
                 if not self.follow.active and (self.requested or self.isVisible()):self.sync_geometry()
@@ -921,6 +970,8 @@ class DailyReport(QWidget):
                 self._host_open_page=None;self._host_prepared_page=None;self._host_return=False;self.requested=False;self.hide()
         return False
     def hideEvent(self,event):
+        if getattr(self,'_open_present_waiting',False):
+            self._open_present_waiting=False;self.setWindowOpacity(self._open_present_opacity)
         self.page_fade.clear()
         self.follow.cancel()
         self.animation.stop();self.requested=False;self.fraction=0.;self._animating=False;self._frame=None

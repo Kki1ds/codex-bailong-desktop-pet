@@ -8,9 +8,7 @@ STARTUP_ERRORS={'cli_native_exit','cli_startup_failed','cli_startup_timeout','cl
 
 def state_path(path=None):
     if path is False:return None
-    if path is not None:return Path(path)
-    from platform_paths import data_dir
-    return data_dir()/'quota-cli-startup.json'
+    return Path(path) if path is not None else __import__('platform_paths').data_dir()/'quota-cli-startup.json'
 
 def identity(executable):
     path=Path(executable).resolve()

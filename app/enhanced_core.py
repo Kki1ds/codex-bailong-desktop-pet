@@ -107,6 +107,8 @@ class Session:
     updated: float = 0
     runtime_active: bool|None = None
     runtime_turn: str = ''
+    historical_only: bool = False
+    turn_is_fallback: bool = False
 
     @property
     def source_hidden(self):return self.source_subagent or bool(self.attached_parent)
@@ -131,6 +133,7 @@ class ActivityReducer:
         """Explicit runtime idleness is reversible, never a synthetic completion."""
         s=self.sessions.get(sid)
         if not s or s.source_hidden or s.done or not turn or s.turn!=turn or not isinstance(active,bool):return []
+        if active:s.historical_only=False
         if s.runtime_turn==turn and s.runtime_active is active:return []
         s.runtime_turn=turn;s.runtime_active=active
         return [self._status(sid,s)]
@@ -140,14 +143,33 @@ class ActivityReducer:
         if not s or s.source_hidden or s.done or not turn or s.turn!=turn or not isinstance(active,bool):return []
         return self.set_runtime(sid,active,turn)+[dict(kind='animation_lifecycle',session=sid,turn=turn,active=active)]
 
+    def restore_active(self,sid,event):
+        turn=event['turn']
+        state=self.sessions.get(sid)
+        if state and (state.source_hidden or turn in (state.closed_turn,state.completed_turn)):
+            return None
+        if state and state.turn==turn:
+            if state.done:return None
+            state.title=event['title']
+        else:
+            if state and not state.done and state.turn and not state.historical_only:return None
+            state=state or self.sessions.setdefault(sid,Session())
+            state.title=event['title'];state.turn=turn;state.turn_is_fallback=False
+            state.done=False;state.historical_only=True;state.state='working'
+            state.message=state.display='任务正在进行'
+            state.compacting=False;state.waiting_reason='';state.calls.clear()
+            state.runtime_turn='';state.runtime_active=None;state.updated=time.monotonic()
+        return state
+
     def terminate(self,sid,status,turn):
         s=self.sessions.get(sid)
         if not s or s.source_hidden or s.done or not turn or s.turn!=turn or status not in ('completed','failed','interrupted'):return []
         s.done=True;s.closed_turn=turn;s.compacting=False;s.waiting_reason=''
-        s.state='complete' if status=='completed' else 'interrupted'
-        s.message=s.display={'completed':'任务已完成','failed':'任务执行失败','interrupted':'任务已中断'}[status]
+        silent=status=='completed' and s.historical_only
+        s.state='idle' if silent else 'complete' if status=='completed' else 'interrupted'
+        s.message=s.display='等待新的 Codex 任务' if silent else {'completed':'任务已完成','failed':'任务执行失败','interrupted':'任务已中断'}[status]
         events=[]
-        if status=='completed':events.append(dict(kind='complete',session=sid,turn=turn,title=s.title,text=s.message))
+        if status=='completed' and not silent:events.append(dict(kind='complete',session=sid,turn=turn,title=s.title,text=s.message))
         return events+[self._status(sid,s)]
 
     def set_waiting(self,sid,reason,turn=''):
@@ -195,12 +217,18 @@ class ActivityReducer:
             if not historical:
                 events.append(self.last_quota)
         typ = p.get('type')
+        explicit_turn=str(p.get('turn_id') or '')
+        started=kind=='event_msg' and typ in ('task_started','turn_started')
+        if (kind=='event_msg' and explicit_turn and s.turn and not s.turn_is_fallback and explicit_turn!=s.turn
+            and typ in ('task_complete','task_completed','turn_aborted','task_aborted','turn_cancelled')):
+            return events
         if s.closed_turn and s.turn==s.closed_turn:
             new_turn=str(p.get('turn_id') or '') if kind=='event_msg' and typ in ('task_started','turn_started') else ''
             if new_turn and new_turn!=s.closed_turn:s.closed_turn=''
             else:return events
         changed = False
         user_message = False
+        was_done, previous_turn=s.done,s.turn
         if kind=='compacted':
             # A saved compaction record proves completion, never its start.
             if s.compacting:s.compacting=False;changed=True
@@ -211,15 +239,15 @@ class ActivityReducer:
         elif kind == 'event_msg' and typ in ('task_started', 'turn_started'):
             s.compacting=False;s.waiting_reason=''
             s.runtime_active=None;s.runtime_turn=''
-            s.turn = str(p.get('turn_id') or stamp)
+            s.turn = explicit_turn or str(stamp)
+            s.turn_is_fallback=not explicit_turn
             s.done = False
             s.state, s.message = 'thinking', '收到任务，正在思考…'
             changed = True
         elif kind == 'event_msg' and typ == 'user_message':
             user_message = True
-            s.title = clean_text(p.get('message', ''), 42) or s.title
             s.done = False
-            s.state, s.message = 'thinking', '正在处理：' + s.title
+            s.state, s.message = 'thinking', '正在处理消息…'
             changed = True
         elif kind == 'event_msg' and typ in ('task_complete', 'task_completed'):
             changed=s.compacting
@@ -239,14 +267,9 @@ class ActivityReducer:
         elif kind == 'event_msg' and typ == 'item_completed':
             item = p.get('item') or {}
             it = item.get('type')
-            # Codex can log a background tool's completion after task_complete
-            # under the same turn; that record must not reopen the finished turn.
-            if s.done and s.completed_turn and str(p.get('turn_id') or '')==s.completed_turn:
-                return events
             if it == 'UserMessage':
                 user_message = True
-                s.title = content_text(item.get('content'))[:42] or s.title
-                s.state, s.message, s.done = 'thinking', '正在处理：' + s.title, False
+                s.state, s.message, s.done = 'thinking', '正在处理消息…', False
                 changed = True
             elif it == 'AgentMessage':
                 text = content_text(item.get('content'))
@@ -254,6 +277,12 @@ class ActivityReducer:
                     s.state, s.message = ('responding' if item.get('phase') == 'final_answer' else 'working'), text
                     changed = True
             elif it in ('CommandExecution', 'McpToolCall', 'FileChange', 'WebSearch', 'Extension'):
+                turn=p.get('turn_id')
+                if isinstance(turn,str) and turn:
+                    if turn==s.completed_turn:return events
+                    # A bounded rollout tail can begin after task_started.
+                    # Keep the explicit ID so IPC and history can retire it.
+                    if not s.turn or s.turn_is_fallback:s.turn=turn;s.turn_is_fallback=False
                 label = {'CommandExecution': '执行命令', 'McpToolCall': '调用工具', 'FileChange': '修改文件', 'WebSearch': '查找资料', 'Extension': '使用扩展工具'}[it]
                 failed = item.get('status') in ('failed', 'error')
                 s.state, s.message = 'working', (label + ('暂未成功，继续处理中…' if failed else '已返回，继续处理中…'))
@@ -261,8 +290,7 @@ class ActivityReducer:
                 changed = True
         elif kind == 'response_item' and typ == 'message' and p.get('role') == 'user':
             user_message = True
-            s.title = clean_text(content_text(p.get('content')), 42) or s.title
-            s.state, s.message, s.done = 'thinking', '正在处理：' + s.title, False
+            s.state, s.message, s.done = 'thinking', '正在处理消息…', False
             changed = True
         elif kind == 'response_item' and typ in ('function_call', 'custom_tool_call'):
             s.state, s.message = 'working', '正在调用工具：' + clean_text(p.get('name', '工具'), 45)
@@ -281,6 +309,9 @@ class ActivityReducer:
         # Preserve a completed operation through commentary until a real next
         # operation/thinking/final lifecycle event replaces it.
         if changed:
+            if not s.done:
+                if historical and (was_done or started and previous_turn!=s.turn):s.historical_only=True
+                elif not historical and (not explicit_turn or explicit_turn==s.turn):s.historical_only=False
             if user_message or typ in ('task_started','turn_started'):
                 s.display='正在思考';s.calls.clear()
             elif s.state=='complete':s.display='任务已完成'
@@ -324,23 +355,33 @@ class RolloutTail:
         self.catalog=LogCatalog(self.home);self.files={};self.last_scan=0;self.seeded=False
         self.health=dict(state='unknown',code='starting');self.pins=set();self.generation=None
         self.discovered=set();self.file_ids={};self.queue=[];self.by_id={}
+        self.continuations={}
         self.rate_observer=None;self.usage_observer=None
-        self.attached={};self._identity_checked=set();self._identity_scan=-1e9;self._hidden=set()
+        self.attached={};self._identity_checked=set();self._identity_scan=-1e9;self._hidden=set();self._rollout_aliases=set()
     def set_pins(self,ids):self.pins={session_id(s) for s in ids}
     def poll(self):
         from performance_metrics import METRICS
-        now=time.monotonic();events=[];errors=0;readable=0
+        now=time.monotonic();events=[];readable=0
         if self.last_scan==0:self.catalog.last_check=-1e9
-        paths=self.catalog.discover();self.last_scan=now;errors+=self.catalog.errors
+        paths=self.catalog.discover();self.last_scan=now;errors=self.catalog.errors
         if self.generation!=self.catalog.revision:
-            self.file_ids={p:rollout_alias(p) for p in paths}
+            aliases={p:rollout_alias(p) for p in paths}
+            # A continued page and its original rollout share one reducer,
+            # including the existing alias used before the page was created.
+            roots={session_id(alias):alias for alias in sorted(aliases.values())
+                   if alias!=session_id(alias)}
+            self.file_ids={p:roots.get(alias,alias) for p,alias in aliases.items()}
+            self._rollout_aliases={session_id(p.stem) for p,alias in aliases.items()
+                                   if session_id(p.stem)!=session_id(alias)}
+            self.continuations={session_id(p.stem):session_id(alias) for p,alias in aliases.items()
+                                if session_id(p.stem)!=session_id(alias)}
             self.generation=self.catalog.revision;new=paths-self.discovered
             def modified(p):
                 try:return p.stat().st_mtime
                 except OSError:return 0
             ordered=sorted(new,key=modified,reverse=True)
             self.queue.extend((p,self.seeded) for p in (ordered if self.seeded else ordered[:16]))
-            self.discovered=set(paths);self.by_id={session_id(self.file_ids[p]):p for p in sorted(paths,key=lambda p:(self.home/'sessions') in p.parents)}
+            self.discovered=set(paths);self.by_id={session_id(self.file_ids[p]):p for p in sorted(paths,key=lambda p:((self.home/'sessions') in p.parents,p.name))}
         identities={session_id(s) for s in self.reducer.sessions}|self.pins
         identities.update(session_id(self.file_ids[p]) for p,new in self.queue[:32])
         if now-self._identity_scan>=5 or identities-self._identity_checked:
@@ -419,7 +460,7 @@ class RolloutTail:
             self.seeded=True
             if self.reducer.last_quota:events.append(self.reducer.last_quota)
             events.append(dict(kind='status',state='idle' if self.files else 'offline',text='已找到本机 Codex 会话，等待新消息' if self.files else '尚未找到本机 Codex 会话，请打开 Codex 并发送消息',title='Codex 状态',active=0))
-        hidden={session_id(sid) for sid,s in self.reducer.sessions.items() if s.source_hidden}|set(self.attached)
+        hidden={session_id(sid) for sid,s in self.reducer.sessions.items() if s.source_hidden}|set(self.attached)|self._rollout_aliases
         if hidden!=self._hidden:
             self._hidden=hidden
             events.insert(0,dict(kind='hidden_sessions',sessions=sorted(hidden)))

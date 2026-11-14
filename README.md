@@ -2,13 +2,13 @@
 
 在桌面查看 Codex 任务状态、完成提醒、账户额度和 Token 用量，也可以让白龙陪你一起工作。支持仅卡片使用，人物动画按需下载。
 
-**[Windows 首次安装](https://github.com/Wunsch2048/codex-bailong-desktop-pet/releases/download/v1.6.0/bailong-desktop-pet-1.6.0-setup.exe)** | **[程序更新](https://github.com/Wunsch2048/codex-bailong-desktop-pet/releases/latest)** | [Linux 预览版](#linux--niri--kde) | [macOS 社区版](#macos)
+**[Windows 首次安装](https://github.com/Wunsch2048/codex-bailong-desktop-pet/releases/download/v1.7.0/bailong-desktop-pet-1.7.0-setup.exe)** | **[程序更新](https://github.com/Wunsch2048/codex-bailong-desktop-pet/releases/latest)** | [Linux 预览版](#linux--niri--kde) | [macOS 社区版](#macos)
 
-Windows 当前公开版 **v1.6.0**。在线安装器直接获取最新累计程序；已有用户可在“设置 → 维护 → 软件更新”升级，无需逐个安装旧补丁。升级保留设置、统计和已下载素材。
+Windows 当前公开版 **v1.7.0**。在线安装器直接获取最新累计程序；已有用户可在“设置 → 维护 → 软件更新”升级，无需逐个安装旧补丁。升级保留设置、统计和已下载素材。
 
 ![白龙桌宠封面](docs/media/cover.png)
 
-**[下载 macOS 社区版 1.6.0-mac.1](https://github.com/Kki1ds/codex-bailong-desktop-pet/releases/tag/v1.6.0-mac.1)**
+**[下载 macOS 社区版 1.7.0-mac.1](https://github.com/Kki1ds/codex-bailong-desktop-pet/releases/tag/v1.7.0-mac.1)**
 
 ## macOS 社区版
 
@@ -16,7 +16,7 @@ macOS 社区版由 [Kki1ds](https://github.com/Kki1ds) 在本 fork 维护，不�
 
 | 项目 | macOS 社区版 |
 | --- | --- |
-| 当前版本 | 1.6.0-mac.1（预发布），基于上游 v1.6.0（18a9ba43） |
+| 当前版本 | 1.7.0-mac.1（预发布），基于上游 v1.7.0（14fc85a4，含已合并的 macOS 路径 PR #28：817ee63） |
 | 测试环境 | Apple Silicon，macOS 27.2，内置屏与外接显示器，ChatGPT.app 内置 Codex CLI |
 | 不在范围内 | Intel Mac 未测试；不声明兼容所有 macOS 版本（最低设为 macOS 12） |
 
@@ -24,8 +24,8 @@ macOS 社区版由 [Kki1ds](https://github.com/Kki1ds) 在本 fork 维护，不�
 
 | 文件 | 用法 |
 | --- | --- |
-| `BailongEnhanced-1.6.0-mac.1-macos-arm64.dmg` | 双击打开，把 `BailongEnhanced.app` 拖到旁边的“Applications”文件夹 |
-| `BailongEnhanced-1.6.0-mac.1-macos-arm64.dmg.sha256` | 在下载目录运行 `shasum -a 256 -c BailongEnhanced-1.6.0-mac.1-macos-arm64.dmg.sha256` 校验 |
+| `BailongEnhanced-1.7.0-mac.1-macos-arm64.dmg` | 双击打开，把 `BailongEnhanced.app` 拖到旁边的“Applications”文件夹 |
+| `BailongEnhanced-1.7.0-mac.1-macos-arm64.dmg.sha256` | 在下载目录运行 `shasum -a 256 -c BailongEnhanced-1.7.0-mac.1-macos-arm64.dmg.sha256` 校验 |
 
 应用约 137 MB，自带 Python 与 Qt，无需安装其他软件，只需本机已安装 Codex 桌面端（ChatGPT.app）或 Codex CLI。安装包只含卡片，人物动画在 设置 → 角色与素材 中从上游 Release 下载，逐一校验后使用。
 
@@ -37,15 +37,15 @@ macOS 社区版由 [Kki1ds](https://github.com/Kki1ds) 在本 fork 维护，不�
 
 ### 已验证
 
-1.6.0-mac.1 合入上游 1.3.0 至 1.6.0 的项目成本、自动价表、实时数字、主题、大卡片布局和四种走动方式，并修复任务完成后状态一直“忙碌”的问题。本机验收了 Chrome 原生全屏与视频全屏让位、多屏混合缩放、新提示浮窗与主题、真实 Codex 任务与提醒、登录启动与钥匙串、轻量动画和窗口模式走动。详情见 [1.6.0-mac.1 发布说明](https://github.com/Kki1ds/codex-bailong-desktop-pet/releases/tag/v1.6.0-mac.1) 和 [验证记录](docs/releases/v1.6.0-mac.1.md)；上一版 [1.2.1-mac.1](https://github.com/Kki1ds/codex-bailong-desktop-pet/releases/tag/v1.2.1-mac.1) 仍可下载。
+1.7.0-mac.1 合入上游 1.6.1 至 1.7.0 的逐位滚动数字、按模型着色的用量图表、额度对照与浮窗布局、状态漏报修复和性能改进；上游已自行修复任务完成后状态一直“忙碌”的问题，Mac 版改用上游实现。本机自动测试全部通过，详情见 [验证记录](docs/releases/v1.7.0-mac.1.md)。上一版 [1.6.0-mac.1](https://github.com/Kki1ds/codex-bailong-desktop-pet/releases/tag/v1.6.0-mac.1) 的人工验收记录见 [docs/releases/v1.6.0-mac.1.md](docs/releases/v1.6.0-mac.1.md)。
 
 ### 已知限制
 
 - 没有应用内更新，不要在 macOS 上使用上游的 Windows 安装器或补丁包；新版请到本仓库 Releases 下载。
 - 不支持 WSL 连接来源（Windows 专属），设置中不显示该选项。
-- 全屏让位用 Chrome 原生全屏与视频全屏实测；未用真实模型服务测试闲聊发送。
-- 高清动画、Chrome 在前台时的窗口避让路线未在本版验收。
-- 本版未重新测量性能，不沿用 1.2.1-mac.1 的 CPU 与内存数据。
+- 本版的窗口行为（全屏让位、跨桌面空间、多屏拖动）沿用 1.6.0-mac.1 的人工验收，未在 1.7.0 上重新人工确认，见 [验证记录](docs/releases/v1.7.0-mac.1.md)。
+- 上游新增的“ChatGPT 套餐”闲聊预览未在 Mac 上测试；凭据会存入登录钥匙串。
+- 高清动画、Chrome 在前台时的窗口避让路线未验收；本版未重新测量性能。
 - 其余限制见 [docs/MACOS.md](docs/MACOS.md#已知限制)。
 
 ### 维护范围
@@ -65,15 +65,14 @@ brew install python@3.12
 
 ## 最近更新
 
-### v1.6.0
+- **账号聊天**：Windows 新增「ChatGPT 套餐」预览，可在浏览器连接账号，也可继续使用自定义 API。改进了授权进度提示和模型列表加载。感谢 @pengxitai37-stack 在 #27 分享源码原型，浏览器授权和 Windows 本地凭据保存参考了这份实现。
+- **卡片动效**：「今日」和「实时」在两种卡片中逐位滚动，速率下降时向下翻。改进刷新时的闪烁、数字对齐和滚动边界。今日用量到 10B 才切换显示单位。
+- **用量图表**：日报和 24 小时图用不同颜色区分模型，悬停可看各模型用量和回合速率中位数。日报的成本入口更容易辨认。
+- **额度与浮窗**：周额度对照会寻找同套餐下更合适的历史周期，条件不足时给出黄色参考。实时和额度浮窗的布局、位置与信息格式更一致。
+- **状态与性能**：修复续写会话在重启后漏报、已读后完成提醒未消失的问题。减少 Token 汇总和图表刷新时的重复计算。
+- **Windows 兼容**：修复登录启动目录可能留下临时快捷方式的问题，改善远程桌面切换显示比例后人物与卡片错位。
 
-- **数字更及时**：今日 Token 随日志增量更新，今日与实时速率加入数字翻动，排版更紧凑。
-- **价格自动更新**：API 单价和官方 Credits 价表可自动更新，历史价格与手动设置保留。
-- **额度更好读**：混用模型也可查看黄色参考差异，图表位置上移。
-- **提醒更准确**：会话继续工作后撤销旧完成提醒，避免内部记录被误当成额外会话。
-- **切换更顺畅**：统一大卡片默认高度，改善首次展开、筛选栏和设置分区切换；修复页面复位、日报背景闪块、多处悬停闪烁及实时窗口收起。
-
-[查看 v1.6.0 完整更新与下载](https://github.com/Wunsch2048/codex-bailong-desktop-pet/releases/tag/v1.6.0)
+[查看 v1.7.0 完整更新与下载](https://github.com/Wunsch2048/codex-bailong-desktop-pet/releases/tag/v1.7.0)
 
 ## 主要功能
 
@@ -137,7 +136,7 @@ Linux 适配源码已合入主分支，预览包由 [helantianshen](https://gith
 
 ## 文档与反馈
 
-[使用说明](docs/使用说明.md) | [开发与构建](docs/DEVELOPMENT.md) | [维护规范](docs/维护规范验证入口.md) | [迭代历史](docs/迭代历史.txt) | [提交问题](https://github.com/Wunsch2048/codex-bailong-desktop-pet/issues/new/choose)
+[使用说明](docs/使用说明.md) | [开发与构建](docs/DEVELOPMENT.md) | [维护规范](docs/维护规范验证入口.md) | [迭代历史](docs/迭代历史.txt) · [旧版专项记录](docs/archive) | [提交问题](https://github.com/Wunsch2048/codex-bailong-desktop-pet/issues/new/choose)
 
 反馈请附版本、系统缩放和复现步骤，并去掉截图、日志中的私密信息。
 

@@ -93,6 +93,10 @@ class UpdateController(QObject):
     def _result(self,value):
         """检查结果和下载结果都须符合平台能力，才能显示或触发安装"""
         if self.closing:return
+        # The worker can queue its result just before the UI handles Cancel.
+        if self.job.cancel.is_set():
+            self._failed('cancelled','下载已暂停，可稍后继续')
+            return
         release=value if self.job.release is None else self.release
         if release.kind!='animation' and not app_updates.program_updates_supported():
             self.install_failed('当前平台不支持 Windows 程序更新，请手动更新程序');return

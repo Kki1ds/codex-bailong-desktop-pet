@@ -11,7 +11,9 @@ import psutil
 POLL_SECONDS=2
 WATCH_FLAG='--watch-codex'
 
-from platform_paths import data_dir,install_root,background_python,MACOS,NO_WINDOW
+from platform_paths import background_python,MACOS,NO_WINDOW
+def data_dir():return __import__('platform_paths').data_dir()
+def install_root():return __import__('platform_paths').install_root()
 def preference_path():return data_dir()/'codex-startup.json'
 def startup_path():
     if MACOS:from platform_paths import launch_agent;return launch_agent('codex-sync')[0]
@@ -123,7 +125,7 @@ def desktop_sessions():
 class LaunchGate:
     def __init__(self):self.sessions=set();self.absent=0
     def observe(self,current):
-        if current is None:return False
+        if current is None:self.absent=0;return False
         if not current:
             self.absent+=1
             if self.absent>=2:self.sessions=set()

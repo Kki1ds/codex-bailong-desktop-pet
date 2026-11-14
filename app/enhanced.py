@@ -21,6 +21,10 @@ if __name__=='__main__' and '--watch-codex' in sys.argv:
     from codex_startup import main as watch_codex
     raise SystemExit(watch_codex())
 
+from bundled_tls import OPENSSL_DLLS, check_startup as check_bundled_tls
+if __name__=='__main__' and not check_bundled_tls():
+    raise SystemExit(1)
+
 from PySide6.QtCore import Qt, QThread, Signal, QTimer, QPoint, QRectF, QUrl
 from PySide6.QtGui import QIcon, QPainter, QPixmap, QCursor, QFontDatabase, QDesktopServices, QColor, QPen
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon, QProgressBar, QLabel
@@ -35,7 +39,7 @@ from refresh_flow import RefreshCoordinator, RefreshRuns
 from hover_hints import TrayHints
 
 from platform_paths import data_dir
-STATE_DIR=data_dir()
+STATE_DIR=data_dir(ROOT)
 STATE_DIR.mkdir(parents=True,exist_ok=True)
 CONFIG=STATE_DIR/'settings.json'
 
@@ -60,7 +64,8 @@ class ActivityThread(QThread):
         self.today_total=LiveTodayTotal(self.token_index.path);self.tail.usage_observer=self.today_total.ingest;self.last_live_today=None
         self.week_cycle=None
         self.token_runs=RefreshRuns()
-        self.last_presence_scan=0;self.presence_reader=None;self.desktop_open=None;self.last_read_scan=0;self.seed_status_sent=False;self.last_name_scan=-10;self.conversation_names={}
+        self.last_presence_scan=0;self.presence_reader=None;self.desktop_open=None;self.last_read_scan=0;self.last_name_scan=-10;self.conversation_names={}
+        self.restored_turns=set()
         from session_read_state import ReadAcknowledgements
         self.read_acknowledgements=ReadAcknowledgements()
         self.live_reader=None;self.live_events=queue.SimpleQueue()
@@ -94,18 +99,10 @@ class ActivityThread(QThread):
                     self.presence_reader=threading.Thread(target=self.read_presence,name='BailongCodexPresence',daemon=True);self.presence_reader.start()
             try:
                 from session_read_state import session_id,active_conversations,conversation_names,terminal_conversations
-                from enhanced_core import Session
                 try:pending=json.loads((self.session_dir/'task-notifications.json').read_text(encoding='utf-8')).get('unread',[])
                 except (OSError,ValueError,AttributeError):pending=[]
                 pending=[k for k in pending if isinstance(k,list) and len(k)==2 and all(isinstance(v,str) for v in k)]
-                seeds=[]
                 history_due=time.monotonic()-self.last_active_scan>=15
-                if history_due:
-                    self.last_active_scan=time.monotonic();seeds=[] if self.wsl else active_conversations(self.tail.home)
-                    existing={session_id(s) for s in self.tail.reducer.sessions}
-                    for e in seeds:
-                        if session_id(e['session']) not in existing:
-                            self.tail.reducer.sessions[e['session']]=Session(title=e['title'],state='working',turn=e['turn'],done=False,updated=time.monotonic())
                 with self.context_lock:displayed=self.displayed;visited=self.visited
                 self.targets.sync(self.tail.reducer.sessions,pending,displayed,visited)
                 self.tail.set_pins(self.targets.pinned());batch=self.tail.poll()
@@ -118,15 +115,28 @@ class ActivityThread(QThread):
                     item['name']=self.conversation_names.get(session_id(item['session'])) or (record.title if record else '') or '会话 '+session_id(item['session'])[:8]
                 if live_rate!=self.last_output_rate:
                     self.last_output_rate=live_rate;self.event.emit(dict(kind='live_output_rate',value=live_rate))
-                if not self.seed_status_sent:
-                    self.seed_status_sent=True
-                    states={session_id(sid):v for sid,v in self.tail.reducer.sessions.items()}
-                    batch.extend(e for e in seeds if not states.get(session_id(e['session']),Session()).done)
+                if history_due:
+                    self.last_active_scan=time.monotonic()
+                if history_due and not self.wsl:
+                    seeds=active_conversations(self.tail.home,self.tail.continuations)
+                    aliases={session_id(sid):sid for sid in self.tail.reducer.sessions}
+                    restored=set();statuses=[]
+                    for event in seeds:
+                        sid=event['session'];key=(sid,event['turn'])
+                        if key in self.restored_turns:
+                            restored.add(key);continue
+                        alias=aliases.get(sid,sid)
+                        state=self.tail.reducer.restore_active(alias,event)
+                        if state:
+                            restored.add(key);statuses.append((alias,state))
+                    self.restored_turns=restored
+                    for alias,state in statuses:
+                        batch.append(dict(self.tail.reducer._status(alias,state),historical_snapshot=True))
                 self.targets.sync(self.tail.reducer.sessions,pending,displayed,visited)
                 if history_due and not self.wsl:
                     unfinished={session_id(sid):s.turn for sid,s in self.tail.reducer.sessions.items() if not s.done and not s.source_hidden and s.turn}
                     ids=self.targets.choose('terminal',128,unfinished)
-                    for sid,turn,status in terminal_conversations(self.tail.home,[(sid,unfinished[sid]) for sid in ids]):
+                    for sid,turn,status in terminal_conversations(self.tail.home,[(sid,unfinished[sid]) for sid in ids],self.tail.continuations):
                         batch.extend(self.tail.reducer.terminate(self.targets.alias(sid),status,turn))
                 self.live_reader.set_targets(self.targets.ipc_targets())
                 while not self.live_events.empty():
@@ -153,7 +163,7 @@ class ActivityThread(QThread):
                 if self.desktop_open is not True:self.read_acknowledgements.first_read.clear()
                 if self.desktop_open is True and time.monotonic()-self.last_read_scan>=2:
                     self.last_read_scan=time.monotonic()
-                    seen=self.read_acknowledgements.poll(self.tail.home,pending)
+                    seen=self.read_acknowledgements.poll(self.tail.home,pending,continuations=self.tail.continuations)
                     if seen:self.event.emit(dict(kind='read_receipts',seen=seen))
                 if time.monotonic()-self.last_health_scan>=10:
                     self.last_health_scan=time.monotonic()
@@ -210,7 +220,7 @@ class ActivityThread(QThread):
             if cycle:options['cycle']=cycle
             snapshot=self.token_index.poll(**options)
             self.today_total.reconcile(snapshot);snapshot['_live_today']=self.today_total.snapshot()
-            if (snapshot.get('quota_history') or {}).get('pending'):
+            if snapshot.get('scan_pending') or (snapshot.get('quota_history') or {}).get('pending'):
                 # Bound each import slice and allow the UI/status worker to run.
                 # Continue in five seconds without adding a GUI timer or scanner.
                 self.last_token_scan=min(self.last_token_scan,time.monotonic()-25)
@@ -231,7 +241,7 @@ class ActivityThread(QThread):
                 if terminal:self.event.emit(terminal)
                 if health:self.event.emit(health)
                 self.event.emit({'kind':'token_busy','busy':False,'run_id':run})
-        if snapshot and (snapshot.get('rates') or {}).get('pending'):
+        if snapshot and not snapshot.get('scan_pending') and (snapshot.get('rates') or {}).get('pending'):
             # Share the background index worker. Yield frequently and publish at most once/second.
             deadline=time.monotonic()+3;last_publish=0
             try:
@@ -242,7 +252,7 @@ class ActivityThread(QThread):
                     if not rates['pending']:break
                     self.stop.wait(.02)
             except Exception:pass  # The next regular poll retries; never discard usage totals.
-        if snapshot and (snapshot.get('projects') or {}).get('pending'):
+        if snapshot and not snapshot.get('scan_pending') and (snapshot.get('projects') or {}).get('pending'):
             from project_cost_drain import drain
             try:
                 drain(lambda:self.token_index.project_step(self.stop.is_set),
@@ -302,9 +312,17 @@ class ResetThread(QThread):
 from compact_bubble import CompactBubble as HeadBubble
 
 class EnhancedPet(Pet):
+    @staticmethod
+    def read_settings(path):
+        try:
+            values=json.loads(path.read_text(encoding='utf-8'))
+            if not isinstance(values,dict):raise ValueError('invalid settings')
+            return values,False
+        except FileNotFoundError:return {},False
+        except (OSError,ValueError,RecursionError):return {},True
+
     def __init__(self,monitor=True):
-        try:self.settings=json.loads(CONFIG.read_text(encoding='utf-8'))
-        except (OSError,ValueError):self.settings={}
+        self.settings,self.settings_read_failed=self.read_settings(CONFIG)
         self.enhanced_ready=False
         super().__init__()
         self.setWindowTitle('白龙桌宠增强版')
@@ -416,10 +434,14 @@ class EnhancedPet(Pet):
             QTimer.singleShot(1800,self.refresh_quota)
         self.position_bubble()
 
-    def save_settings(self):
+    def collect_settings(self):
         self.settings.update(wandering=self.wandering,random_actions=self.random_actions,
                              commentary=self.commentary,sound=self.sound,bubble=self.bubble.enabled,
                              quota_visible=self.bubble.show_quota,position=[self.x(),self.y()])
+
+    def save_settings(self):
+        if self.settings_read_failed:return False
+        self.collect_settings()
         save_json(CONFIG,self.settings)
 
     def say(self,text,ms=4000):
@@ -716,7 +738,8 @@ class EnhancedPet(Pet):
             self.bubble.set_live_today(snapshot.get('_live_today'),refresh=False)
             if snapshot.get('unavailable') and self.bubble.token_snapshot:
                 snapshot=dict(self.bubble.token_snapshot,partial=True,refresh_failed=True)
-            self.bubble.token_snapshot=snapshot;self.bubble.redraw();self.position_bubble()
+            self.bubble.token_snapshot=snapshot
+            if not self.bubble.refresh_token_snapshot():self.bubble.redraw();self.position_bubble()
             if self.bubble.report:self.bubble.report.set_snapshot(self.bubble.token_snapshot)
             self.refresh_flow.result('token',event.get('run_id'),not any(event['snapshot'].get(key) for key in ('unavailable','partial')))
         elif kind=='token_rate':
@@ -734,7 +757,7 @@ class EnhancedPet(Pet):
         elif kind=='token_usage_error':
             if self.bubble.token_snapshot:self.bubble.token_snapshot=dict(self.bubble.token_snapshot,partial=True,refresh_failed=True)
             else:self.bubble.token_snapshot=dict(month=time.strftime('%Y-%m'),days={},total=0,partial=True,unavailable=True)
-            self.bubble.redraw()
+            if not self.bubble.refresh_token_snapshot():self.bubble.redraw()
             if self.bubble.report:self.bubble.report.set_snapshot(self.bubble.token_snapshot)
             self.refresh_flow.result('token',event.get('run_id'),False)
         elif kind=='quota':self.update_quota(event['windows'],event['observed'],'session')
@@ -1008,6 +1031,36 @@ def main():
                 import ssl
                 context=ssl.create_default_context()
                 result=dict(state='available',code='ok',contextReady=True,certificateVerification=context.verify_mode==ssl.CERT_REQUIRED,hostnameVerification=context.check_hostname,readOnly=True,offline=True)
+                if sys.platform=='win32' and getattr(sys,'frozen',False):
+                    from PySide6.QtCore import QCoreApplication
+                    from PySide6.QtNetwork import QSslSocket
+                    import psutil
+                    application=QCoreApplication.instance() or QCoreApplication([])
+                    if not QSslSocket.setActiveBackend('openssl') or not QSslSocket.supportsSsl():
+                        raise RuntimeError('Qt OpenSSL backend did not initialize')
+                    names=set(OPENSSL_DLLS)
+                    expected={Path(sys.executable).resolve().parent/name for name in names}
+                    loaded={Path(m.path).resolve() for m in psutil.Process().memory_maps()
+                            if Path(m.path).name.lower() in names}
+                    if loaded!=expected:
+                        raise RuntimeError('Qt/Python loaded OpenSSL outside the application directory')
+                    result['bundledQtOpenSsl']=True
+                    conflict=os.environ.get('BAILONG_TLS_TEST_CONFLICT_DIR')
+                    if conflict:
+                        entries=[Path(entry).resolve() for entry in os.environ.get('PATH','').split(os.pathsep) if entry]
+                        # PyInstaller and PySide6 prepend bundled directories.
+                        # None of those may contain another OpenSSL copy.
+                        internal=Path(sys._MEIPASS).resolve()
+                        first_external=None
+                        for entry in entries:
+                            if not entry.is_relative_to(internal):
+                                first_external=entry
+                                break
+                            if any((entry/name).exists() for name in OPENSSL_DLLS):
+                                raise RuntimeError('Unexpected duplicate OpenSSL DLL in bundled PATH')
+                        if first_external!=Path(conflict).resolve():
+                            raise RuntimeError('OpenSSL conflict directory is not the first external PATH entry')
+                        result['externalOpenSslFirstInPath']=True
             else:
                 feed=fetch_feed();result=dict(state='available',code='ok',events=len(feed['events']),scheduled=feed['scheduled'],seconds=round(time.monotonic()-started,3),readOnly=True)
         except Exception as error:result=reset_failure(error)

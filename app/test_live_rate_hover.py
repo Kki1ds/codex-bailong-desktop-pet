@@ -96,7 +96,7 @@ class LiveRateHoverTests(unittest.TestCase):
     def test_popup_pointer_and_scroll_survive_same_surface_rebuild(self):
         bubble=CompactBubble();self.widgets.append(bubble);bubble.move(100,400);bubble.show();APP.processEvents()
         card=bubble.live_rate_card
-        card.set_data(dict(rate=30,details=[dict(session=str(i),name='会话',rate=3) for i in range(12)]))
+        card.set_data(dict(rate=30,details=[dict(session=str(i),name='会话',rate=3) for i in range(16)]))
         self.show_hint(card);popup=card.popup;popup.scroll=38
         self.position=popup.geometry().center()
         bubble.redraw();APP.processEvents()

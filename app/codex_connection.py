@@ -74,9 +74,19 @@ def data_home(home=None):
         from wsl_codex import unc
         try:return Path(unc(saved['wsl_distro'],saved['wsl_home']))
         except (KeyError,ValueError):return Path(r'\\wsl$\Invalid-Bailong-Profile\__unconfigured__')
-    value=home or os.environ.get('BAILONG_CODEX_HOME') or os.environ.get('CODEX_HOME') or saved_paths().get('home') or user_environment('CODEX_HOME') or Path.home()/'.codex'
     from wsl_codex import unc_parts
-    if wsl_supported() and unc_parts(value):return Path(value)
+    if not wsl_supported():
+        # Same priority as the chain below, but a value that is blank or a leftover \\wsl$ path once
+        # cleaned is skipped instead of shadowing later sources. The cleaned value is also
+        # the one resolved, so the check and the result cannot disagree.
+        def clean(value):
+            unquote=lambda text:text.strip().strip('"').strip()
+            return unquote(os.path.expandvars(unquote(str(value))))
+        for source in (lambda:home,lambda:os.environ.get('BAILONG_CODEX_HOME'),lambda:os.environ.get('CODEX_HOME'),lambda:saved_paths().get('home'),lambda:user_environment('CODEX_HOME'),lambda:Path.home()/'.codex'):
+            value=source();value=clean(value) if value else ''
+            if value and not unc_parts(value):return Path(value).expanduser().resolve()
+    value=home or os.environ.get('BAILONG_CODEX_HOME') or os.environ.get('CODEX_HOME') or saved_paths().get('home') or user_environment('CODEX_HOME') or Path.home()/'.codex'
+    if unc_parts(value):return Path(value)
     return Path(os.path.expandvars(str(value).strip().strip('"'))).expanduser().resolve()
 
 def is_wsl_source(home=None):
