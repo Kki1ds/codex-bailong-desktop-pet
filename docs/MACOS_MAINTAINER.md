@@ -2,6 +2,21 @@
 
 给接手维护 macOS 社区版的人（或 Claude）。用户手册见 [MACOS.md](MACOS.md)；上游遗留的 HANDOFF.md / AGENTS.md 针对 Windows 版，不适用于 macOS 发布。
 
+## 1.7.0 同步（2026-11-14）
+
+- 维护基线为上游 v1.7.0（14fc85a4）加已合并的 macOS 路径 PR #28（817ee63），Mac 版本 1.7.0-mac.1（`MAC_VERSION` 由 `version.py` 的 1.7.0 推出）。分支 `codex/macos-1.7.0`，验证见 [1.7.0-mac.1 验证记录](releases/v1.7.0-mac.1.md)。
+- `platform_paths.py` 现为上游与 fork 共有文件：上游提供 `data_dir(fallback)` / `local_appdata(fallback)`（Windows/Linux 保持原 LOCALAPPDATA 表达式，`enhanced.py` 以 `data_dir(ROOT)` 调用），fork 在同一文件保留 `install_root`、LaunchAgent 系列、`background_python`、`app_root`、`NO_WINDOW`、`BUNDLE_ID`。下次合并以上游函数为准，只叠加 fork 辅助函数。
+- `codex_connection.data_home` 的 WSL 守卫已由上游 #28 实现（清理引号、空白、变量展开后再判断 `\\wsl$` 路径），fork 不再有独立改动。
+- 应用内更新：上游 `app_updates.program_updates_supported()` 已在非 Windows 返回 False；设置页只用它判断，macOS 文案保留；`update_controller.UNSUPPORTED` 仍整体关闭 macOS 的检查与下载（含动画补丁），不要删。
+- 上游 1.7.0 新增 `cryptography`（ChatGPT 套餐的 ID Token 验签），本地 `.venv` 需按 requirements 补装，否则冻结包缺依赖。ChatGPT 套餐凭据在 Mac 上经 `desktop_services.SecretStore` 落到登录钥匙串，服务名与闲聊密钥相同（账户名 `active`），尚未在 Mac 实测。
+- fork 在共用文件中的改动（下次同步需逐条保留或确认上游已等价处理）：
+  - `panel_transition.present_barrier`：先判断 `sys.platform == 'win32'` 再调用 DWM。测试会把 `platformName` 模拟成 windows，非 Windows 主机上没有 `ctypes.windll`。
+  - `test_upgrade_settings`：macOS 上把临时目录 resolve 到 `/private/var`，否则部署路径保护把 `/var` 系统别名当成链接拒绝（被测的是 Windows 部署逻辑，生产规则不变）。
+  - `test_update_integration.UpdateCancellationTests`：与同文件其他用例一样，用 `update_controller.UNSUPPORTED=False` 夹具测试 Windows 更新流程。
+  - `test_linked_cards` 互补混合用例：非 Windows 的 alpha 下限为 253（Windows 仍为 254）。Apple Silicon 光栅路径在混合中段恒定少 2 个最低位，与权重无关；把 `CompositionMode_Plus` 改回 source-over 的变异测试会降到 246 而失败，仍能拦截原缺陷。
+  - `check_source.py --macos`：Mac 追加列表去掉已在上游 MODULES 中的模块，避免 `test_enhanced_core` 重复执行。
+- 共享文件按上游换行统一：上游 1.7.0 已把部分文件改回 LF（如 `enhanced.py`、`hover_hints.py`、`panel_transition.py`），合并后用脚本比较每个共享文件与 upstream 的换行风格，混排的直接按上游转换。
+
 ## 1.6.0 移植（2026-11-08 合并并发布 1.6.0-mac.1 预发布）
 
 - 当前维护基线为上游 v1.6.0（18a9ba43）及发布后首页提交 214d1534，Mac 版本 1.6.0-mac.1，公开入口为 v1.6.0-mac.1 预发布。
@@ -59,7 +74,7 @@
 
 同步上游时逐条查看上游是否已修：已修则改用上游实现并删除 fork 改动，保留回归测试作为验证；未修则保留 fork 改动。
 
-- [上游 #25](https://github.com/Wunsch2048/codex-bailong-desktop-pet/issues/25)（2026-11-08 提交）：Codex 在 `task_complete` 后为同一 turn 补写后台命令的 `item_completed`，会话被重新判为执行中，状态长期忙碌、自主走动停止。fork 修复见 `b99f6a6`：`enhanced_core.py` 的 `Session.completed_turn` 及 `item_completed` 分支的同 turn 忽略；回归测试为 `test_enhanced_core` 中两项 `late_tool_completion` / `tail_seeded_completion` 用例，已加入 `check_source.py --macos`。
+- [上游 #25](https://github.com/Wunsch2048/codex-bailong-desktop-pet/issues/25)（2026-11-08 提交）：Codex 在 `task_complete` 后为同一 turn 补写后台命令的 `item_completed`，会话被重新判为执行中。**上游 v1.7.0 已修复**（`Session.completed_turn` 及 `item_completed` 分支同 turn 忽略），1.7.0 同步时 `enhanced_core.py` 改为与上游字节一致，删除 fork 的 `b99f6a6` 改动；fork 回归测试保留在 `test_enhanced_core`（`test_late_tool_completion_after_complete_emits_nothing`，为避免与上游同名用例互相覆盖而改名；`test_tail_seeded_completion_ignores_late_tool_record`），继续由 `check_source.py --macos` 执行。目前没有 fork 自行修复的共用代码。
 
 ## 给用户的命令规则
 
