@@ -1,6 +1,7 @@
 """macOS 1.2.1 compatibility and general full-screen policy regressions."""
 import os,sys,tempfile,unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 os.environ.setdefault('QT_QPA_PLATFORM','offscreen')
 from PySide6.QtWidgets import QApplication
@@ -47,6 +48,30 @@ class UpgradeTests(unittest.TestCase):
             self.guard.check();self.assertTrue(self.pet._fullscreen_yielded)
             self.pet.apply_settings(dict(fullscreen_yield_mode='off'),save=False)
             self.assertFalse(self.pet._fullscreen_yielded);self.assertFalse(self.pet.settings['on_top'])
+    def test_codex_foreground_and_fullscreen_visibility_are_independent(self):
+        pet=self.pet;policy=pet.surface_policy
+        frontmost=None
+        backend=SimpleNamespace(frontmost_application=lambda:frontmost,
+                                refresh_surfaces=lambda pet:None,
+                                hide_card_companions=native.hide_card_companions)
+        with patch.object(policy,'mac',backend):
+            pet.apply_settings(dict(codex_focus_only=True),save=False)
+            self.assertTrue(policy.timer.isActive())
+            self.assertFalse(pet.bubble.isVisible())
+            frontmost=(123,'com.openai.codex.helper')
+            policy.poll_focus();self.assertFalse(pet.bubble.isVisible())
+            frontmost=(234,'com.openai.codex')
+            policy.poll_focus();self.assertTrue(pet.bubble.isVisible())
+            frontmost=None
+            policy.poll_focus();self.assertTrue(pet.bubble.isVisible())
+            pet.set_fullscreen_yield(True)
+            policy.poll_focus();self.assertFalse(pet.bubble.isVisible())
+            frontmost=(345,'com.apple.finder')
+            policy.poll_focus()
+            pet.set_fullscreen_yield(False);self.assertFalse(pet.bubble.isVisible())
+            policy.timer.stop()
+            pet.apply_settings(dict(codex_focus_only=False),save=False)
+            self.assertFalse(policy.timer.isActive());self.assertTrue(pet.bubble.isVisible())
     def test_settings_expose_general_mode_and_no_windows_installer(self):
         self.pet.open_settings();s=self.pet.settings_dialog
         s.build_page(0);self.assertEqual([key for label,key in s.fullscreen_mode.items],['off','game_video'])

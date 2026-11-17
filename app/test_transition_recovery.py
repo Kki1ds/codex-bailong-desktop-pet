@@ -1,7 +1,7 @@
 """Issue #22: stale optional widgets cannot freeze navigation."""
 import os,unittest
 os.environ['QT_QPA_PLATFORM']='offscreen'
-from unittest.mock import patch,Mock
+from unittest.mock import patch,Mock,call
 from types import SimpleNamespace
 from shiboken6 import isValid
 from PySide6.QtCore import QCoreApplication,QEvent
@@ -87,8 +87,11 @@ class HiddenPanelTests(unittest.TestCase):
                 window=Mock();window.enabled=False;window.windowHandle.return_value=None
                 panel=Mock();panel.isWindow.return_value=False
                 pet=SimpleNamespace(bubble=window,settings_dialog=panel if page=='settings' else None,chat_window=panel if page=='chat' else None,
-                    stop_walk=Mock(),set_option=Mock(),apply_surface_visibility=Mock(),throwing=True,_desktop_hidden=True)
+                    stop_walk=Mock(),set_option=Mock(),apply_surface_visibility=Mock(),throwing=True,_desktop_hidden=True,_focus_hidden=True,
+                    _fullscreen_yielded=False,surface_policy=SimpleNamespace(mac=object()))
                 with patch('desktop.QApplication.setActiveWindow'):DesktopPet.show_panel(pet,panel)
                 pet.set_option.assert_called_once_with('bubble',True);window.show_page.assert_called_once_with(page,panel)
+                self.assertLess(window.method_calls.index(call._editing_flags(True)),
+                                window.method_calls.index(call.activateWindow()))
 
 if __name__=='__main__':unittest.main()

@@ -6,6 +6,8 @@
 
 [1.7.0-mac.1](https://github.com/Kki1ds/codex-bailong-desktop-pet/releases/tag/v1.7.0-mac.1)（2026-11-14 预发布）基于上游 v1.7.0（14fc85a4）及已合并的 macOS 路径 PR #28（817ee63），包含逐位滚动数字、按模型着色的用量图表、额度对照与浮窗布局更新。[验证与验收记录](releases/v1.7.0-mac.1.md)。上一版 [1.6.0-mac.1](https://github.com/Kki1ds/codex-bailong-desktop-pet/releases/tag/v1.6.0-mac.1) 的人工验收见 [记录](releases/v1.6.0-mac.1.md)。
 
+本地候选 [1.8.0-mac.1](releases/v1.8.0-mac.1.md) 支持三档窗口层级、仅在 Codex 前台时显示，以及上游新版卡片和历史统计。
+
 ## 下载与安装
 
 1. 在 [Releases](https://github.com/Kki1ds/codex-bailong-desktop-pet/releases) 下载 `BailongEnhanced-<版本>-macos-arm64.dmg`，只支持 Apple Silicon。可用同名 `.sha256` 文件校验：`shasum -a 256 -c <文件名>.sha256`。

@@ -2,6 +2,14 @@
 
 给接手维护 macOS 社区版的人（或 Claude）。用户手册见 [MACOS.md](MACOS.md)；上游遗留的 HANDOFF.md / AGENTS.md 针对 Windows 版，不适用于 macOS 发布。
 
+## 1.8.0 同步（2026-11-18）
+
+- 本地候选 1.8.0-mac.1 合并上游 main `752f0893`，对应发布标签 v1.8.0（`cb130091`）。公开入口见 [MACOS.md](MACOS.md)，候选见 [验收记录](releases/v1.8.0-mac.1.md)。
+- `surface_policy` 共享窗口状态和前台开关。Cocoa 用 `mac_native` 设置 AppKit 层级；Qt 的置底标志在 Mac 上不生效。Qt 显示、重建窗口或切换鼠标穿透后重新应用层级。浮窗跟随所属卡片，置底编辑时临时使用正常层。遍历浮窗前用 `shiboken6.isValid` 排除底层已释放的 Qt 对象；离屏测试不访问 NSView。
+- 用户主动打开聊天和设置时，先解除卡片的鼠标穿透，再请求键盘焦点。Cocoa 会拒绝让仍处于输入穿透状态的窗口成为 key window。用实际 `NSWindow.isKeyWindow` 和设置数值输入验证。
+- Mac 只在开启「仅在 Codex 前台时显示」时查询 AppKit 前台 bundle ID。全屏让位优先；退出全屏后按当前前台状态和用户设置恢复。继续保留 Mac 原生菜单栏入口及主动打开设置、聊天时的输入焦点。
+- 素材页的归档续传走 `MaterialStore`，与 `UpdateController` 的程序和动画补丁入口独立。保留 Mac 补丁守卫，续传后的素材仍需完整校验。
+
 ## 1.7.0 同步（2026-11-14）
 
 - 维护基线为上游 v1.7.0（14fc85a4）加已合并的 macOS 路径 PR #28（817ee63），Mac 版本 1.7.0-mac.1（`MAC_VERSION` 由 `version.py` 的 1.7.0 推出）。分支 `codex/macos-1.7.0`，验证见 [1.7.0-mac.1 验证记录](releases/v1.7.0-mac.1.md)。
@@ -56,9 +64,9 @@
 2. `git merge -X ignore-cr-at-eol upstream/main`，逐个解决冲突，不整文件覆盖。
 3. 对照下面“合并时必须保留的 Mac 专属代码”逐项检查。
 4. 在 Mac（Apple Silicon）上实测：测试、源码启动、全屏让位、Codex 联动、登录启动等，见 MACOS.md 验收记录。
-5. 修改 `build_macos.py` 里的 `MAC_VERSION`（形如 `{上游版本}-mac.N`），N 为该上游版本下的第几次 macOS 发布；同步更新 README 与 MACOS.md 里的版本、基线提交和验收记录。
+5. `build_macos.py` 从 `app/version.py` 派生 `MAC_VERSION`（形如 `{上游版本}-mac.N`）。同步新上游版本时从 `-mac.1` 开始，同一上游版本再次发布时递增 N。记录基线提交和验收结果，公开版入口在发布后更新。
 6. `python build_macos.py --cards-only --dmg`，产物在 `release/macos-<版本>-<时间>/`，含 .dmg 与 .sha256；脚本不会删除旧构建。
-7. 发布须有用户明确授权。本次用户已明确要求测试、打包并发布，允许代为创建草稿、上传校验完整的资产，再公开为预发布；无发布授权时只准备本地交付物。
+7. 发布以当轮用户授权为准。获准发布后创建草稿、上传校验完整的资产，再公开为预发布。
 8. 不要向 Release 以外的位置上传安装包；仓库里不提交构建产物、凭据或日志。
 
 ## 合并时必须保留的 Mac 专属代码
