@@ -1144,7 +1144,9 @@ class DesktopPet(EnhancedPet):
             if self._focus_hidden or self.surface_policy.mac is not None:self._focus_editor_override=True
             if not self.bubble.enabled:self.set_option('bubble',True)
             self.stop_walk();self.throwing=False;self._desktop_hidden=False;self.apply_surface_visibility()
-            if self.surface_policy.mac is not None:self.surface_policy.mac.refresh(self.bubble)
+            if self.surface_policy.mac is not None:
+                # Cocoa refuses key-window status while the passive card is input-transparent.
+                self.bubble._editing_flags(True)
             # First activation can synchronously polish the native editor and
             # take a full frame. Do it before the snapshot animation starts so
             # the visible morph has an uninterrupted clock.
