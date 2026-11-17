@@ -2,6 +2,7 @@
 import ctypes,ctypes.util,sys,weakref
 from PySide6.QtCore import Qt,QObject,QEvent,QTimer
 from PySide6.QtGui import QGuiApplication
+from shiboken6 import isValid
 
 # NSWindowCollectionBehavior bits.
 CAN_JOIN_ALL_SPACES=1<<0
@@ -15,8 +16,12 @@ FULL_SCREEN_PRIMARY=1<<7
 FULL_SCREEN_AUXILIARY=1<<8
 FULL_SCREEN_NONE=1<<9
 NORMAL_LEVEL=0
+BOTTOM_LEVEL=-1
+# Qt Cocoa uses NSModalPanelWindowLevel for WindowStaysOnTopHint.
+TOP_LEVEL=8
 _objc=None
 _full_screen=False;_overlays=weakref.WeakSet();_watcher=None;_guard=None;_yield=True
+_surface_owners=weakref.WeakKeyDictionary()
 
 def cocoa():
     # Offscreen/minimal winId() values are counters, not NSViews; never message them.
@@ -80,8 +85,18 @@ def refresh(widget):
         if not window:return
         join_all_spaces(widget,_full_screen)
         _send(window,'setHidesOnDeactivate:',None,(ctypes.c_bool,),False)
-        # Qt puts a Tool window without StaysOnTop at the floating level; Windows keeps normal z-order.
-        if not widget.windowFlags()&Qt.WindowType.WindowStaysOnTopHint:_send(window,'setLevel:',None,(ctypes.c_long,),NORMAL_LEVEL)
+        pet=surface_owner(widget)
+        if pet is None:
+            # Qt puts a Tool window without StaysOnTop at the floating level.
+            if widget.windowFlags()&Qt.WindowType.WindowStaysOnTopHint:return
+            level=NORMAL_LEVEL
+        else:
+            layer=pet.settings['window_layer']
+            if layer=='top':level=TOP_LEVEL
+            elif layer=='bottom' and (widget is pet or not pet.bubble.native_editor_active()):level=BOTTOM_LEVEL
+            else:level=NORMAL_LEVEL
+        if _send(window,'level',ctypes.c_long)!=level:
+            _send(window,'setLevel:',None,(ctypes.c_long,),level)
     except (OSError,AttributeError,ValueError):pass
 
 class _Watcher(QObject):
@@ -90,6 +105,8 @@ class _Watcher(QObject):
         if event.type()==QEvent.Type.Show:
             refresh(obj);QTimer.singleShot(0,obj,lambda:refresh(obj))
             if _guard is not None:QTimer.singleShot(0,_guard,_guard.check) # no flash over a full-screen Space
+        elif event.type()==QEvent.Type.WinIdChange:
+            QTimer.singleShot(0,obj,lambda:refresh(obj) if obj.isVisible() else None)
         return False
 
 def overlay(widget):
@@ -101,14 +118,47 @@ def overlay(widget):
     if _watcher is None:_watcher=_Watcher()
     widget.installEventFilter(_watcher);_overlays.add(widget)
 
+def set_surface_owner(widget,owner):
+    if owner is None:_surface_owners.pop(widget,None)
+    else:_surface_owners[widget]=weakref.ref(owner)
+
+def surface_owner(widget):
+    while widget is not None and isValid(widget):
+        reference=_surface_owners.get(widget)
+        owner=reference() if reference else None
+        if owner is widget:return owner
+        widget=owner if owner is not None else widget.parentWidget()
+    return None
+
+def refresh_surfaces(pet):
+    if not cocoa():return
+    for widget in list(_overlays):
+        if isValid(widget) and widget.isVisible() and surface_owner(widget) is pet:refresh(widget)
+
+def hide_card_companions(pet):
+    if not cocoa():return
+    for widget in list(_overlays):
+        if isValid(widget) and widget not in (pet,pet.bubble) and widget.isVisible() and surface_owner(widget) is pet:
+            widget.hide()
+
+def stack_card(pet):
+    if not pet.isVisible() or not pet.bubble.isVisible():return
+    character=ns_window(pet);card=ns_window(pet.bubble)
+    if character and card:
+        number=_send(character,'windowNumber',ctypes.c_long)
+        if number>0:_send(card,'orderWindow:relativeTo:',None,(ctypes.c_long,ctypes.c_long),1,number)
+
 def set_full_screen(value):
     """Allow overlays into other apps' full-screen Spaces when yielding is off."""
     global _full_screen
     if _full_screen==bool(value):return
     _full_screen=bool(value)
     for widget in list(_overlays):
+        if not isValid(widget):continue
         refresh(widget)
-        if _full_screen and widget.isVisible():widget.raise_()
+        pet=surface_owner(widget)
+        if _full_screen and widget.isVisible() and (pet is None or pet.settings['window_layer']=='top'):
+            widget.raise_()
 
 _cg=None
 class _Rect(ctypes.Structure):
@@ -270,14 +320,28 @@ def on_reopen(callback):
     except (OSError,AttributeError,ValueError):return False
 
 
+def _frontmost_app():
+    workspace=_send(_runtime().objc_getClass(b'NSWorkspace'),'sharedWorkspace')
+    return _send(workspace,'frontmostApplication')
+
+def frontmost_application():
+    """Return the frontmost PID and bundle identifier, without enumerating windows."""
+    try:
+        app=_frontmost_app()
+        pid=_send(app,'processIdentifier',ctypes.c_int) if app else 0
+        if pid<=0:return None
+        identifier=_send(app,'bundleIdentifier')
+        name=_send(identifier,'UTF8String',ctypes.c_char_p) if identifier else None
+        return pid,name.decode('utf-8','replace') if name else ''
+    except (OSError,AttributeError,ValueError):return None
+
 def foreground_geometry(area,own_pid):
     """Frontmost application's first on-screen normal window, in Qt logical coordinates.
 
     Only PID, layer and bounds are inspected; no window titles or image data.
     Quartz and Qt use top-left global points, independent of Retina backing pixels.
     """
-    workspace=_send(_runtime().objc_getClass(b'NSWorkspace'),'sharedWorkspace')
-    app=_send(workspace,'frontmostApplication')
+    app=_frontmost_app()
     pid=_send(app,'processIdentifier',ctypes.c_int) if app else 0
     if not pid or pid==own_pid:return None
     cg,cf,keys=_quartz();windows=cg.CGWindowListCopyWindowInfo(1|16,0)
