@@ -1,6 +1,6 @@
-# macOS 1.8.0 本地候选（2026-11-18）
+# macOS 1.8.0 社区预发布（2026-11-18）
 
-分支 `codex/macos-1.8.0` 合入上游 v1.8.0 及发布说明提交 `752f0893`。Mac 三档窗口层级和 Codex 前台显示已接入 AppKit。合并源码、签名镜像和验证结果见 [1.8.0-mac.1 验收记录](docs/releases/v1.8.0-mac.1.md)。
+分支 `codex/macos-1.8.0` 已通过 PR #4 合入 fork main。[1.8.0-mac.1](https://github.com/Kki1ds/codex-bailong-desktop-pet/releases/tag/v1.8.0-mac.1) 指向 `5f8b2bc`，DMG 和校验文件已匿名下载核验。合并源码、签名镜像和验证结果见 [1.8.0-mac.1 验收记录](docs/releases/v1.8.0-mac.1.md)。
 
 # macOS 1.7.0 同步（2026-11-14）
 

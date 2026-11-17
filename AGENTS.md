@@ -1,6 +1,6 @@
 # macOS fork 当前约定（2026-11-18）
 
-Mac 本地候选基于上游 v1.8.0（1.8.0-mac.1），公开预发布为 1.7.0-mac.1。Mac 维护优先参照 docs/MACOS_MAINTAINER.md。Mac 通用全屏让位时完成提醒不抢回显示。下方上游 Windows 的视频模式提醒优先规则只适用于该 Windows 模式。
+Mac 公开预发布为 1.8.0-mac.1，基于上游 v1.8.0。Mac 维护优先参照 docs/MACOS_MAINTAINER.md。Mac 通用全屏让位时完成提醒不抢回显示。下方上游 Windows 的视频模式提醒优先规则只适用于该 Windows 模式。
 
 # 白龙桌宠维护规则
 

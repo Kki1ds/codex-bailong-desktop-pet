@@ -8,7 +8,9 @@ Windows 当前公开版 **v1.8.0**。在线安装器直接获取最新累计程�
 
 ![白龙桌宠封面](docs/media/cover.png)
 
-**[下载 macOS 社区版 1.7.0-mac.1](https://github.com/Kki1ds/codex-bailong-desktop-pet/releases/tag/v1.7.0-mac.1)**
+**[下载 macOS 社区版 1.8.0-mac.1](https://github.com/Kki1ds/codex-bailong-desktop-pet/releases/tag/v1.8.0-mac.1)**
+
+<a name="macos"></a>
 
 ## macOS 社区版
 
@@ -16,18 +18,18 @@ macOS 社区版由 [Kki1ds](https://github.com/Kki1ds) 在本 fork 维护，不�
 
 | 项目 | macOS 社区版 |
 | --- | --- |
-| 当前版本 | 1.7.0-mac.1（预发布），基于上游 v1.7.0（14fc85a4，含已合并的 macOS 路径 PR #28：817ee63） |
-| 测试环境 | Apple Silicon，macOS 27.2，内置屏与外接显示器，ChatGPT.app 内置 Codex CLI |
+| 当前版本 | [1.8.0-mac.1（预发布）](https://github.com/Kki1ds/codex-bailong-desktop-pet/releases/tag/v1.8.0-mac.1)，基于上游 v1.8.0（`cb130091`） |
+| 测试环境 | M1 Pro，macOS 27.2.1，双屏，ChatGPT.app 内置 Codex CLI |
 | 不在范围内 | Intel Mac 未测试；不声明兼容所有 macOS 版本（最低设为 macOS 12） |
 
 ### 下载
 
 | 文件 | 用法 |
 | --- | --- |
-| `BailongEnhanced-1.7.0-mac.1-macos-arm64.dmg` | 双击打开，把 `BailongEnhanced.app` 拖到旁边的“Applications”文件夹 |
-| `BailongEnhanced-1.7.0-mac.1-macos-arm64.dmg.sha256` | 在下载目录运行 `shasum -a 256 -c BailongEnhanced-1.7.0-mac.1-macos-arm64.dmg.sha256` 校验 |
+| [Apple Silicon DMG](https://github.com/Kki1ds/codex-bailong-desktop-pet/releases/download/v1.8.0-mac.1/BailongEnhanced-1.8.0-mac.1-macos-arm64.dmg) | 双击打开，把 `BailongEnhanced.app` 拖到旁边的“Applications”文件夹 |
+| [SHA-256 校验文件](https://github.com/Kki1ds/codex-bailong-desktop-pet/releases/download/v1.8.0-mac.1/BailongEnhanced-1.8.0-mac.1-macos-arm64.dmg.sha256) | 在下载目录运行 `shasum -a 256 -c BailongEnhanced-1.8.0-mac.1-macos-arm64.dmg.sha256` |
 
-应用约 137 MB，自带 Python 与 Qt，无需安装其他软件，只需本机已安装 Codex 桌面端（ChatGPT.app）或 Codex CLI。安装包只含卡片，人物动画在 设置 → 角色与素材 中从上游 Release 下载，逐一校验后使用。
+DMG 约 78.6 MB，自带 Python 与 Qt。本机需有 Codex 桌面端（ChatGPT.app）或 Codex CLI。安装包只含卡片，人物动画可在「设置 → 角色与素材」下载，校验后使用。
 
 应用使用 ad-hoc 签名，未公证。首次打开时会提示无法验证开发者：在 Finder 中右键 .app 选择“打开”，或在 系统设置 → 隐私与安全性 中点“仍要打开”。
 
@@ -35,17 +37,15 @@ macOS 社区版由 [Kki1ds](https://github.com/Kki1ds) 在本 fork 维护，不�
 
 设置和统计保存在 `~/Library/Application Support/BailongEnhanced`，源码运行和 .app 共用；升级时用新版替换旧版即可，设置和已下载的动画保留。桌宠不修改 Codex 的配置和登录凭据；闲聊密钥存放在登录钥匙串中，不写入文件。安装包不含账号、会话、个人设置或凭据。
 
-### 已验证
+### 本版更新
 
-1.7.0-mac.1 合入上游 1.6.1 至 1.7.0 的逐位滚动数字、按模型着色的用量图表、额度对照与浮窗布局、状态漏报修复和性能改进；上游已自行修复任务完成后状态一直“忙碌”的问题，Mac 版改用上游实现。本机自动测试全部通过，详情见 [验证记录](docs/releases/v1.7.0-mac.1.md)。上一版 [1.6.0-mac.1](https://github.com/Kki1ds/codex-bailong-desktop-pet/releases/tag/v1.6.0-mac.1) 的人工验收记录见 [docs/releases/v1.6.0-mac.1.md](docs/releases/v1.6.0-mac.1.md)。
+新增双栏卡片、独立及联动缩放、三档窗口层级和仅在 Codex 前台显示。日报和 24 小时图按小时显示输出速率，历史可按日历查看。聊天设置统一入口，素材下载支持续传。97 组自动回归及 Mac 原生窗口验收通过，详见 [1.8.0-mac.1 验收记录](docs/releases/v1.8.0-mac.1.md)。
 
 ### 已知限制
 
 - 没有应用内更新，不要在 macOS 上使用上游的 Windows 安装器或补丁包；新版请到本仓库 Releases 下载。
 - 不支持 WSL 连接来源（Windows 专属），设置中不显示该选项。
-- 本版的窗口行为（全屏让位、跨桌面空间、多屏拖动）沿用 1.6.0-mac.1 的人工验收，未在 1.7.0 上重新人工确认，见 [验证记录](docs/releases/v1.7.0-mac.1.md)。
-- 上游新增的“ChatGPT 套餐”闲聊预览未在 Mac 上测试；凭据会存入登录钥匙串。
-- 高清动画、Chrome 在前台时的窗口避让路线未验收；本版未重新测量性能。
+- 混合缩放、普通桌面空间切换、注销再登录自动启动及公开轻量和高清素材包完整下载仍待人工验收。
 - 其余限制见 [docs/MACOS.md](docs/MACOS.md#已知限制)。
 
 ### 维护范围
