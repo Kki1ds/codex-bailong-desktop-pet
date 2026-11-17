@@ -1,3 +1,7 @@
+# macOS 1.8.0 本地候选（2026-11-18）
+
+分支 `codex/macos-1.8.0` 合入上游 v1.8.0 及发布说明提交 `752f0893`。Mac 三档窗口层级和 Codex 前台显示已接入 AppKit。合并源码、签名镜像和验证结果见 [1.8.0-mac.1 验收记录](docs/releases/v1.8.0-mac.1.md)。
+
 # macOS 1.7.0 同步（2026-11-14）
 
 分支 codex/macos-1.7.0，同步上游 v1.7.0（817ee63，含已合并的 macOS 路径 PR #28）。维护与验证见 docs/MACOS_MAINTAINER.md 和 docs/releases/v1.7.0-mac.1.md。
