@@ -1,0 +1,75 @@
+name: Clean Claude PR Metadata
+
+on:
+  pull_request:
+    types: [opened, edited, reopened]
+
+permissions:
+  pull-requests: write
+
+# 同一个 PR 的多次触发排队执行，避免互相覆盖
+concurrency:
+  group: clean-pr-body-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  clean-pr-body:
+    # 只处理 Claude 创建的分支（对应桌面端设置里的分支前缀 "claude"）
+    if: startsWith(github.head_ref, 'claude/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Strip Claude attribution, session link, and footer
+        uses: actions/github-script@v7
+        env:
+          # 设为 'true' 则保留隐藏的 claude-projects-attribution 注释，
+          # 以免影响 Claude 项目对该 PR 的识别（自动修复、PR 标签页等）
+          KEEP_MARKER: 'false'
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const pull_number = context.payload.pull_request.number;
+
+            // 读取最新正文，而不是事件触发时的快照，避免覆盖之后的编辑
+            const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number });
+            const original = (pr.body || '').replace(/\r\n/g, '\n');
+            if (!original.trim()) return;
+
+            const keepMarker = process.env.KEEP_MARKER === 'true';
+            let cleaned = original;
+
+            // 1. 隐藏的项目归属注释
+            if (!keepMarker) {
+              cleaned = cleaned.replace(
+                /<!--\s*claude-projects-attribution:[\s\S]*?-->\n?/gi,
+                ''
+              );
+            }
+
+            // 2. 页眉：_Requested by **xxx** · [project thread](https://claude.ai/code/project/...)_
+            //    只匹配第一处、且链接必须指向 claude.ai 项目线程，连同其后的空行和分割线
+            cleaned = cleaned.replace(
+              /^[ \t]*[*_]*[ \t]*Requested by\b[^\n]*\]\(https:\/\/claude\.ai\/code\/project\/[^)]+\)[^\n]*\n?(?:[ \t]*\n)*(?:[ \t]*---[ \t]*\n)?/im,
+              ''
+            );
+
+            // 3. 云端会话单独成行的会话链接：https://claude.ai/code/session_xxx
+            cleaned = cleaned.replace(
+              /^[ \t]*<?https:\/\/claude\.ai\/code\/session_[A-Za-z0-9_-]+>?[ \t]*$\n?/gm,
+              ''
+            );
+
+            // 4. 页脚：位于正文末尾的 "Generated with/by [Claude Code](...)" 行及其前面的分割线
+            //    不使用 m 标志，$ 只匹配整个正文的结尾，正文中间提到这句话不会被误删
+            cleaned = cleaned.replace(
+              /(?:\n[ \t]*---[ \t]*)?\s*[^\n]*Generated (?:by|with)\s+\[Claude Code\]\(https?:\/\/[^)]+\)[^\n]*\s*$/i,
+              ''
+            );
+
+            cleaned = cleaned.trim();
+
+            if (cleaned !== original.trim()) {
+              await github.rest.pulls.update({ owner, repo, pull_number, body: cleaned });
+              core.info(`Cleaned PR #${pull_number} body.`);
+            } else {
+              core.info(`PR #${pull_number} body is already clean.`);
+            }
